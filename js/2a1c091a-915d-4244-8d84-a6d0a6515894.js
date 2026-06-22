@@ -160,6 +160,12 @@ function openQuoteDetail(cust){
 /* ============================================================
    顧客・店舗
    ============================================================ */
+/* プレビュー中の行レベル絞り込みを説明するバナー（営業＝自担当のみ）。範囲制限がなければ空文字。 */
+function scopeNote(label,total,shown){
+  const me=(typeof previewOwner==='function')?previewOwner():null;
+  if(!me) return '';
+  return note(`<b>営業ロール</b>：${label}は<b>自担当（${me}）</b>のレコードのみ表示しています（全${total}件中 <b>${shown}件</b>）。担当外のデータは一覧・検索に出ません（行レベル権限）。`,'warn','shield');
+}
 function scr_cust(t){
   if(t!==5){ custStoreMgmt=''; storeStatus='すべて'; storeArea='すべて'; } // 店舗一覧以外へ移ったら絞り込みを解除
   if(t===1) return scr_cust_new();
@@ -183,14 +189,19 @@ function scr_cust(t){
     {l:'要フォロー',v:'21',d:'解約検討含む',dir:'down',icon:'warn',accent:'amber'},
   ])+
   toolbar(searchBox('顧客名・コードで検索…')+sel(['区分：すべて','飲食チェーン','商業施設','病院・福祉','学校'])+`<span class="spacer"></span>`+btnCsv+btnNew('顧客新規登録','cust:1'))+
-  tbl([{t:'顧客コード'},{t:'顧客名'},{t:'分類'},{t:'担当営業'},{t:'店舗数',num:true},{t:'契約'},{t:'状態'}],[
-    ['<span class="code">C-100245</span>','<b>みなとフードホールディングス</b>',tag('t-teal','飲食チェーン'),'佐藤','312',tag('t-green','3件'),tag('t-green','稼働中')],
-    ['<span class="code">C-100244</span>','<b>関西モール管理</b>',tag('t-teal','商業施設'),'鈴木','118',tag('t-green','2件'),tag('t-green','稼働中')],
-    ['<span class="code">C-100240</span>','<b>グルメテーブル中部FC</b>',tag('t-teal','飲食チェーン'),'梶原','167',tag('t-green','1件'),tag('t-green','稼働中')],
-    ['<span class="code">C-100236</span>','<b>中央総合病院グループ</b>',tag('t-teal','病院・福祉'),'高橋','9',tag('t-amber','1件'),tag('t-amber','更新交渉中')],
-    ['<span class="code">C-100231</span>','<b>大学生協連合 関西</b>',tag('t-teal','学校'),'佐藤','24',tag('t-green','1件'),tag('t-green','稼働中')],
-    ['<span class="code">C-100201</span>','<b>旧・西物産</b>',tag('t-gray','商業施設'),'—','0','—',tag('t-gray','停止')],
-  ],{click:true});
+  (function(){
+    const all=[
+      ['<span class="code">C-100245</span>','<b>みなとフードホールディングス</b>',tag('t-teal','飲食チェーン'),'佐藤','312',tag('t-green','3件'),tag('t-green','稼働中')],
+      ['<span class="code">C-100244</span>','<b>関西モール管理</b>',tag('t-teal','商業施設'),'鈴木','118',tag('t-green','2件'),tag('t-green','稼働中')],
+      ['<span class="code">C-100240</span>','<b>グルメテーブル中部FC</b>',tag('t-teal','飲食チェーン'),'梶原','167',tag('t-green','1件'),tag('t-green','稼働中')],
+      ['<span class="code">C-100236</span>','<b>中央総合病院グループ</b>',tag('t-teal','病院・福祉'),'高橋','9',tag('t-amber','1件'),tag('t-amber','更新交渉中')],
+      ['<span class="code">C-100231</span>','<b>大学生協連合 関西</b>',tag('t-teal','学校'),'佐藤','24',tag('t-green','1件'),tag('t-green','稼働中')],
+      ['<span class="code">C-100201</span>','<b>旧・西物産</b>',tag('t-gray','商業施設'),'—','0','—',tag('t-gray','停止')],
+    ];
+    const rows=all.filter(r=>ownsRow(r[3]));   // 行レベル権限：営業プレビュー時は担当営業＝自分のみ
+    return scopeNote('顧客一覧',all.length,rows.length)+
+      tbl([{t:'顧客コード'},{t:'顧客名'},{t:'分類'},{t:'担当営業'},{t:'店舗数',num:true},{t:'契約'},{t:'状態'}],rows,{click:true});
+  })();
 }
 function scr_cust_new(){
   return note('顧客を登録すると、1社に対して<b>複数店舗をまとめて登録</b>できます。住所は郵便番号から<b>Google Maps で自動取得</b>、店舗が多い場合は <b>CSV一括インポート</b>（店舗一覧タブ）もご利用ください。','eco','pin')+
@@ -349,8 +360,10 @@ const TXN_HISTORY = [
 ];
 function scr_cust_history(){
   txnState={q:'',kind:'すべて',period:'すべて',amt:'すべて',by:'すべて'}; // 画面再入時にフィルタ状態をUIと同期
-  const rows = TXN_HISTORY.map(h=>[h.date, tag(h.cls,h.kind), `<b>${h.cust}</b>`, h.title, h.by, `<span class="num">${h.amt}</span>`]);
+  const visible = TXN_HISTORY.filter(h=>ownsRow(h.by));   // 行レベル権限：営業プレビュー時は自担当のみ
+  const rows = visible.map(h=>[h.date, tag(h.cls,h.kind), `<b>${h.cust}</b>`, h.title, h.by, `<span class="num">${h.amt}</span>`]);
   return note('顧客ごとの<b>過去取引履歴</b>を一元保存。商談・請求・契約・対応をまたいでキーワード検索でき、営業スマホアプリにも同じ履歴が表示されます。')+
+  scopeNote('取引履歴',TXN_HISTORY.length,visible.length)+
   note('履歴の<b>保存年限は7年</b>（電子帳簿・契約関連に準拠）。旧システムの過去データは<b>CSV移行</b>で取り込めます（コード突合のうえ重複排除）。','eco','clock')+
   toolbar(
     `<div style="position:relative;flex:1;max-width:340px"><input id="txnSearch" class="search grow" style="width:100%;padding-left:34px" placeholder="顧客名・内容・担当でキーワード検索…" oninput="filterTxn(this.value)"><span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--faint)">${ic('search')}</span></div>`+
@@ -444,12 +457,15 @@ function scr_sales(t){
     ]))}
   </div>`;
   // tab 0: 訪問・商談
-  return toolbar(sel(['種別：すべて','定期訪問','商談','電話','クレーム対応'])+`<span class="spacer"></span>`+btnNew('記録を追加'))+
-  tbl([{t:'日付'},{t:'顧客'},{t:'担当'},{t:'種別'},{t:'内容'},{t:'次回アクション'}],[
+  const allAct=[
     ['2026/05/29','みなとフードHD','梶原',tag('t-blue','定期訪問'),'新店舗のグリストラップ清掃見積依頼を受領','6/5 見積提出'],
     ['2026/05/27','関西モール管理','鈴木',tag('t-teal','商談'),'排水管洗浄の年間契約を提案','6/10 役員提示'],
     ['2026/05/25','中央総合病院G','高橋',tag('t-gray','電話'),'夜間作業の日程調整','対応済'],
-  ],{click:true});
+  ];
+  const act=allAct.filter(r=>ownsRow(r[2]));   // 行レベル権限：営業プレビュー時は担当＝自分のみ
+  return toolbar(sel(['種別：すべて','定期訪問','商談','電話','クレーム対応'])+`<span class="spacer"></span>`+btnNew('記録を追加'))+
+  scopeNote('営業活動',allAct.length,act.length)+
+  tbl([{t:'日付'},{t:'顧客'},{t:'担当'},{t:'種別'},{t:'内容'},{t:'次回アクション'}],act,{click:true});
 }
 
 /* ---- AI日報（管理者閲覧） ---- */
@@ -522,12 +538,20 @@ function openSalesNippo(staff,date){
   showDrawer();
 }
 function scr_sales_ai(){
-  const rows = DAILY_REPORTS.map(r=>[
+  const visible = DAILY_REPORTS.filter(r=>ownsRow(r.staff));   // 行レベル権限：営業プレビュー時は自分の日報のみ
+  const rows = visible.map(r=>[
     r.date, `<b>${r.staff}</b>`, `<span class="num">${r.visits}</span>`, `<span class="num">${r.deals}</span>`,
     `<span class="ai-pill">${ic('bolt')}AI生成</span>`, tag(r.tag,r.st),
     `<span class="lnk" onclick="openSalesNippo('${esc(r.staff)}','${r.date}')">日報を見る</span>`
   ]);
-  return note('営業がスマホアプリに入力した活動内容を <b>AIが標準フォーマットの日報に自動生成</b>。管理者はここで全営業の日報を閲覧・承認できます。','eco','bolt')+
+  const canApprove = (typeof canApproveReport==='function') ? canApproveReport() : true;
+  const intro = canApprove
+    ? '営業がスマホアプリに入力した活動内容を <b>AIが標準フォーマットの日報に自動生成</b>。マネージャ・管理者はここで日報を閲覧・<b>承認／差し戻し</b>できます。'
+    : '営業がスマホアプリに入力した活動内容を <b>AIが標準フォーマットの日報に自動生成</b>。営業は<b>自分の日報のみ</b>閲覧でき、<b>承認・差し戻しは上長（マネージャ以上）</b>が行います。';
+  const foot = canApprove
+    ? `<div class="form-foot"><button class="btn primary" onclick="toast('日報を承認しました')">${ic('check')}承認する</button><button class="btn">${ic('download')}PDF出力</button><button class="btn ghost">差し戻し</button></div>`
+    : `<div class="form-foot"><button class="btn">${ic('download')}PDF出力</button><span class="subtle" style="font-size:12px;display:inline-flex;align-items:center;gap:6px">${ic('shield')}承認・差し戻しは上長（マネージャ以上）のみ</span></div>`;
+  return note(intro,'eco','bolt')+
   kpi([
     {l:'本日 提出',v:'8',u:'/12',d:'残4名',dir:'flat',icon:'file'},
     {l:'AI生成 日報',v:'342',u:'件',d:'今月',dir:'up',icon:'bolt',accent:'eco'},
@@ -535,6 +559,7 @@ function scr_sales_ai(){
     {l:'平均訪問',v:'3.4',u:'件/人',d:'0.3',dir:'up',icon:'pin'},
   ])+
   toolbar(searchBox('担当者・内容で検索…')+sel(['期間：今週','今日','今月'])+sel(['状態：すべて','下書き','提出済','承認済'])+`<span class="spacer"></span>`+btnCsv)+
+  scopeNote('AI日報',DAILY_REPORTS.length,visible.length)+
   tbl([{t:'日付'},{t:'担当者'},{t:'訪問',num:true},{t:'商談',num:true},{t:'作成'},{t:'状態'},''],rows)+
   panel(`${ic('bolt','pic')}AI日報プレビュー <span class="sub">2026/05/29 · 梶原 健司</span>`, `
     <div class="ai-report">
@@ -544,5 +569,5 @@ function scr_sales_ai(){
       <div class="arp-sec"><div class="arp-l">次回アクション</div><div>6/5 みなとフード見積提出 ／ 6/10 中央病院G 役員提示</div></div>
       <div class="arp-sec"><div class="arp-l">所感</div><div>栄町店のトラブル履歴を提示できたことで、頻度見直しの提案がスムーズだった。</div></div>
     </div>
-    <div class="form-foot"><button class="btn primary" onclick="toast('日報を承認しました')">${ic('check')}承認する</button><button class="btn">${ic('download')}PDF出力</button><button class="btn ghost">差し戻し</button></div>`);
+    ${foot}`);
 }

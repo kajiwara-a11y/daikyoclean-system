@@ -19,6 +19,19 @@ function roleLevel(key,navId){
   return permSymLevel(row[idx]);
 }
 const LVL_LABEL = {F:'フル',E:'編集可',R:'参照のみ',N:'非表示'};
+/* ---- レコード単位スコープ（行レベル権限） ----
+   プレビュー中、ロールの「自担当のみ（△）」を体現する代表ペルソナで一覧を行レベルに絞る。
+   営業＝自担当（梶原）。マネージャ/事務/管理者は会社・全社スコープのため範囲制限なし(null)。
+   ※本実装ではサーバ側で担当者ID／所属部門による Row-Level Security を必須とする（権限画面に明記）。 */
+const PREVIEW_OWNER = { sales:'梶原' };
+function previewOwner(){ return state.preview ? (PREVIEW_OWNER[state.preview]||null) : null; }
+function ownsRow(owner){ const me=previewOwner(); return me ? String(owner||'').indexOf(me)>=0 : true; }
+/* AI日報の承認・差し戻し可否：PERM_MATRIX「AI日報 承認・差し戻し」(index9)＝admin/mgrのみ◎。自分(プレビュー外)はフル。 */
+function canApproveReport(){
+  const r=state.preview; if(!r) return true;
+  const row=(typeof PERM_MATRIX!=='undefined')?PERM_MATRIX[r]:null;
+  return row ? permSymLevel(row[9])!=='N' : true;
+}
 function enterPreview(key){
   if(!state.preview) state.prevMod = {mod:state.mod, tab:state.tab};
   state.preview = key;
@@ -776,6 +789,7 @@ function applyTxn(){
   const q=txnState.q.trim().toLowerCase(), k=txnState.kind;
   const period=txnState.period, amtB=txnState.amt, by=txnState.by;
   const rows = TXN_HISTORY.filter(h=>
+      ownsRow(h.by) &&                              // 行レベル権限：営業プレビュー時は自担当のみ
       (k==='すべて'||h.kind===k) &&
       (by==='すべて'||h.by===by) &&
       txnInPeriod(h.date,period) &&
