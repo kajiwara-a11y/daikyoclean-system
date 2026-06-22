@@ -274,7 +274,7 @@ function renderAiDone(){
 function supApprove(){ aiReport.status='approved'; renderAiReportStatus(); renderAiDone(); toast('上長が日報を承認しました'); }
 function supReturn(){ aiReport.status='returned'; renderAiReportStatus(); renderAiDone(); toast('上長が日報を差し戻しました','warn'); }
 /* 差し戻し → プレビューに戻って再編集 */
-function reopenAiReport(){ renderAiReportStatus(); go('s_aireport'); toast('差し戻し：内容を修正して再提出してください'); }
+function reopenAiReport(){ back(); renderAiReportStatus(); toast('差し戻し：内容を修正して再提出してください'); }
 
 /* ---- AI日報：提出済み日報の閲覧（一覧 / 詳細） ---- */
 var aiRepFilter='すべて';

@@ -204,11 +204,11 @@ function scr_cust_billto(){
 }
 function scr_cust_mgmt(){
   return toolbar(searchBox()+`<span class="spacer"></span>`+btnNew('管理会社登録'))+
-  tbl([{t:'コード'},{t:'管理会社名'},{t:'管理区域'},{t:'管理店舗',num:true},{t:'有効期間'},''],[
-    ['<span class="code">M-301</span>','<b>関西施設サービス</b>','近畿7府県','1,240','2024/04〜2027/03',A('履歴')],
-    ['<span class="code">M-302</span>','<b>東日本ビル管理</b>','関東全域','980','2023/10〜2026/09',A('履歴')],
-    ['<span class="code">M-303</span>','<b>京浜メンテナンス</b>','神奈川・東京','620','2025/01〜',A('履歴')],
-  ],{click:true})+note('管理会社の切替（店舗移管）は履歴として追跡されます。有効期間で世代管理します。');
+  tbl([{t:'コード'},{t:'管理会社名'},{t:'管理区域'},{t:'管理店舗',num:true},{t:'有効期間'},{t:'操作'}],[
+    ['<span class="code">M-301</span>','<b>関西施設サービス</b>','近畿7府県','1,240','2024/04〜2027/03','<span class="lnk" onclick="openMgmtDetail(\'M-301\')">詳細</span> <span class="lnk">履歴</span>'],
+    ['<span class="code">M-302</span>','<b>東日本ビル管理</b>','関東全域','980','2023/10〜2026/09','<span class="lnk" onclick="openMgmtDetail(\'M-302\')">詳細</span> <span class="lnk">履歴</span>'],
+    ['<span class="code">M-303</span>','<b>京浜メンテナンス</b>','神奈川・東京','620','2025/01〜','<span class="lnk" onclick="openMgmtDetail(\'M-303\')">詳細</span> <span class="lnk">履歴</span>'],
+  ])+note('管理会社の行の「詳細」で所属店舗を確認できます。切替（店舗移管）は履歴として追跡し、有効期間で世代管理します。');
 }
 function scr_cust_store(){
   return kpi([
@@ -242,6 +242,7 @@ const TXN_HISTORY = [
   {kind:'入金', cls:'t-green', date:'2026/04/28', cust:'グルメテーブル中部FC', title:'2026年4月分 入金を確認（消込済）', by:'佐藤', amt:'¥1,078,000'},
 ];
 function scr_cust_history(){
+  txnState={q:'',kind:'すべて',period:'すべて',amt:'すべて',by:'すべて'}; // 画面再入時にフィルタ状態をUIと同期
   const rows = TXN_HISTORY.map(h=>[h.date, tag(h.cls,h.kind), `<b>${h.cust}</b>`, h.title, h.by, `<span class="num">${h.amt}</span>`]);
   return note('顧客ごとの<b>過去取引履歴</b>を一元保存。商談・請求・契約・対応をまたいでキーワード検索でき、営業スマホアプリにも同じ履歴が表示されます。')+
   note('履歴の<b>保存年限は7年</b>（電子帳簿・契約関連に準拠）。旧システムの過去データは<b>CSV移行</b>で取り込めます（コード突合のうえ重複排除）。','eco','clock')+

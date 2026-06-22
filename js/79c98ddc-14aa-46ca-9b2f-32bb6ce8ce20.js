@@ -129,6 +129,7 @@ function setTab(i){
 /* ---- In-page segmented controls (toggle + panel switch) ---- */
 function bindSegmented(){
   document.querySelectorAll('.segmented').forEach(g=>{
+    if(!g.dataset.sg) return; // 手動onclick（例: 取引履歴 #txnKind）は上書きせず尊重する
     g.querySelectorAll('.seg').forEach((s,i)=>{
       s.onclick=()=>{
         g.querySelectorAll('.seg').forEach(x=>x.classList.remove('active'));
@@ -491,6 +492,49 @@ function billtoHistoryHtml(code){
   if(!rows.length) return note('この請求先の変更履歴はまだありません。');
   return tbl([{t:'適用日'},{t:'変更内容'},{t:'変更者'}],rows);
 }
+/* 管理会社の詳細：所属店舗一覧を表示 */
+const MGMT_DETAIL = {
+  'M-301': { name:'関西施設サービス', area:'近畿7府県', period:'2024/04〜2027/03', count:1240, stores:[
+    {code:'S-204411', name:'みなとフード 栄町店',     area:'大阪市中央区',   status:'営業中',   sc:'t-green'},
+    {code:'S-204410', name:'みなとフード 梅田北口店', area:'大阪市北区',     status:'営業中',   sc:'t-green'},
+    {code:'S-204388', name:'グルメテーブル 三宮店',   area:'神戸市中央区',   status:'開店準備中', sc:'t-amber'},
+    {code:'S-204202', name:'関西モール 梅田',         area:'大阪市北区',     status:'営業中',   sc:'t-green'},
+    {code:'S-204150', name:'中央総合病院 本院',       area:'大阪市天王寺区', status:'営業中',   sc:'t-green'},
+    {code:'S-204051', name:'みなとフード 難波店',     area:'大阪市浪速区',   status:'営業中',   sc:'t-green'},
+  ]},
+  'M-302': { name:'東日本ビル管理', area:'関東全域', period:'2023/10〜2026/09', count:980, stores:[
+    {code:'S-118803', name:'みなとフード 新宿南口店', area:'東京都新宿区',   status:'営業中',    sc:'t-green'},
+    {code:'S-118770', name:'グルメテーブル 品川店',   area:'東京都港区',     status:'営業中',    sc:'t-green'},
+    {code:'S-118702', name:'関東モール 大宮',         area:'さいたま市',     status:'営業中',    sc:'t-green'},
+    {code:'S-118655', name:'みなとフード 千葉中央店', area:'千葉市中央区',   status:'移管手続中', sc:'t-amber'},
+    {code:'S-118590', name:'中央総合病院 横浜分院',   area:'横浜市西区',     status:'営業中',    sc:'t-green'},
+  ]},
+  'M-303': { name:'京浜メンテナンス', area:'神奈川・東京', period:'2025/01〜', count:620, stores:[
+    {code:'S-205512', name:'みなとフード 川崎駅前店',   area:'川崎市川崎区', status:'営業中', sc:'t-green'},
+    {code:'S-205480', name:'グルメテーブル 横浜西口店', area:'横浜市西区',   status:'営業中', sc:'t-green'},
+    {code:'S-205433', name:'関東モール 蒲田',           area:'東京都大田区', status:'営業中', sc:'t-green'},
+    {code:'S-205390', name:'みなとフード 武蔵小杉店',   area:'川崎市中原区', status:'閉店',   sc:'t-red'},
+  ]},
+};
+function openMgmtDetail(code){
+  const m=MGMT_DETAIL[code]; if(!m) return;
+  document.getElementById('drawerTitle').textContent=m.name;
+  document.getElementById('drawerSub').textContent=code+' · '+m.area;
+  document.getElementById('drawerBody').innerHTML = `
+    <dl class="kv">
+      <dt>管理区域</dt><dd>${m.area}</dd>
+      <dt>管理店舗</dt><dd>${m.count.toLocaleString()} 店舗</dd>
+      <dt>有効期間</dt><dd>${m.period}</dd>
+    </dl>
+    <div class="divline"></div>
+    <div style="font-weight:700;font-size:13px;margin:2px 0 9px">${ic('store')} 所属店舗 <span class="subtle" style="font-weight:500;font-size:11.5px">${m.count.toLocaleString()}件中 ${m.stores.length}件を表示</span></div>
+    <div class="tbl-wrap" style="margin:0"><div class="scroll"><table><thead><tr><th>店舗コード</th><th>店舗名</th><th>エリア</th><th>状態</th></tr></thead><tbody>
+      ${m.stores.map(s=>`<tr class="row"><td class="mono">${s.code}</td><td><b>${s.name}</b></td><td>${s.area}</td><td><span class="tag ${s.sc}">${s.status}</span></td></tr>`).join('')}
+    </tbody></table></div></div>
+    <div style="text-align:center;margin-top:11px"><span class="lnk" onclick="closeDrawer();route('cust',5)">店舗一覧で全 ${m.count.toLocaleString()} 店舗を見る →</span></div>`;
+  document.getElementById('drawerFoot').innerHTML=`<button class="btn" onclick="closeDrawer();route('cust',5)">店舗一覧へ</button><button class="btn ghost" onclick="closeDrawer()">閉じる</button>`;
+  showDrawer();
+}
 function openBillToForm(code){
   document.getElementById('drawerTitle').textContent='請求宛先の設定';
   document.getElementById('drawerSub').textContent=code+' · 宛先パターン／締日';
@@ -516,13 +560,7 @@ function openBillToForm(code){
 /* ============================================================
    入金管理：消込・入金登録（残額算出）
    ============================================================ */
-// 本社（親会社）ごとの請求額・既入金（プロト固定値）
-const PAYMENTS = {
-  'みなとフードHD':       {billed:2728000, paid:2728000},
-  '関西モール管理':       {billed:1298000, paid:800000},
-  '中央総合病院グループ': {billed:185000,  paid:0},
-  'グルメテーブル中部FC': {billed:1078000, paid:1100000},
-};
+// 入金の請求額・充当は openAllocationForm / PAY_OPEN に集約（旧 PAYMENTS は廃止）
 const yen = n => '¥'+Number(n).toLocaleString('ja-JP');
 // 本社ごとの 1入金額 と 未消込（OPEN）請求書一覧。1入金→複数請求の充当（多対多）デモ用。
 const PAY_OPEN = {
@@ -613,14 +651,7 @@ function allocSave(){
   closeDrawer();
   toast('入金 '+yen(ALLOC_CTX.pay)+' を '+cnt+'件の請求に充当しました（'+diffTxt+'）');
 }
-function payRest(name,val,commit){
-  const p = PAYMENTS[name] || {billed:0, paid:0};
-  const input = parseInt(String(val).replace(/[¥,]/g,''),10) || 0;
-  const rest = p.billed - (p.paid + input);
-  const msg = rest>0 ? `残額 ${yen(rest)}` : (rest<0 ? `過入金 ${yen(-rest)}` : '残額なし（全額消込）');
-  const hint=document.getElementById('payHint'); if(hint) hint.textContent=msg;
-  if(commit) toast('入金を登録しました（'+msg+'）');
-}
+/* 旧 payRest（単一入金の残額計算）は openAllocationForm（充当UI）に統合済みのため廃止 */
 
 /* ============================================================
    取引履歴：種別フィルタ + キーワード検索
@@ -813,7 +844,7 @@ function initCharts(){
   if(m==='revenue'){ if(t===1){ barSimple('rv1',months,[34,35,37,34,36,38,42,31,33,37,38,38.6]); barSimple('rvy1',['2022','2023','2024','2025','2026'],[362,388,402,412,77],PAL.eco); } if(t===2) barHCust('rv2'); if(t===3) doughnutWork('rv3'); }
   if(m==='bi'){
     if(t===0){ lineYoY('bm1'); doughnutWork('bm2'); barHCust('bm3'); barArea('bm4'); }
-    if(t===1){ barSimple('bi1',['2022','2023','2024','2025','2026'],[362,388,402,412,38.6],PAL.eco); barSimple('bi2',['2023','2024','2025','2026'],[7.2,3.6,2.5,4.8],PAL.amber); }
+    if(t===1){ barSimple('bi1',['2022','2023','2024','2025','2026'],[362,388,402,412,77],PAL.eco); barSimple('bi2',['2023','2024','2025','2026'],[7.2,3.6,2.5,4.8],PAL.amber); }
     if(t===2) barHCust('bi3');
     if(t===3){ barHCust('bi4'); barArea('bi5'); }
     if(t===4) barSimple('bi6',['GT清掃','排水管','雑排水槽','産廃','緊急'],[182,96,61,42,21],PAL.brand);
