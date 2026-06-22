@@ -22,12 +22,6 @@ const LVL_LABEL = {F:'フル',E:'編集可',R:'参照のみ',N:'非表示'};
 function enterPreview(key){
   if(!state.preview) state.prevMod = {mod:state.mod, tab:state.tab};
   state.preview = key;
-  const role = ROLES.find(r=>r.key===key);
-  document.getElementById('previewBar').classList.add('on');
-  document.querySelector('.app').classList.add('preview-on');
-  document.getElementById('pvRoleName').textContent = role.name;
-  const cnt = NAV.filter(n=>n.type==='item' && roleLevel(key,n.id)!=='N').length;
-  document.getElementById('pvMeta').textContent = `アクセス可能：${cnt}メニュー`;
   renderSidebar();
   route(ROLE_LANDING[key]||'dashboard',0);
   document.querySelector('.main').scrollTop=0;
@@ -35,8 +29,6 @@ function enterPreview(key){
 }
 function exitPreview(){
   state.preview = null;
-  document.getElementById('previewBar').classList.remove('on');
-  document.querySelector('.app').classList.remove('preview-on');
   renderSidebar();
   const p = state.prevMod || {mod:'dashboard',tab:0};
   route(p.mod, p.tab);
@@ -60,12 +52,8 @@ function renderSidebar(){
     if(!items.length) return;                 // hide empty category in preview
     if(g.label) h+=`<div class="nav-cat"><div class="cl">${g.label}</div></div>`;
     items.forEach(n=>{
-      const lvl = pv ? roleLevel(pv,n.id) : 'F';
-      const ro = pv && lvl==='R';
-      h+=`<div class="nav-item ${ro?'ro':''}" data-id="${n.id}" onclick="route('${n.id}')">
-        ${ic(n.icon,'ni-ic')}<span>${n.name}</span>${
-          ro ? `<span class="ro-badge">参照</span>` : (n.badge?`<span class="ni-badge">${n.badge}</span>`:'')
-        }</div>`;
+      h+=`<div class="nav-item" data-id="${n.id}" onclick="route('${n.id}')">
+        ${ic(n.icon,'ni-ic')}<span>${n.name}</span>${n.badge?`<span class="ni-badge">${n.badge}</span>`:''}</div>`;
     });
   });
   side.innerHTML = h + `<div class="side-foot"><span class="dot"></span>${pv?'プレビューモード':'システム稼働中 · v2.4'}</div>`;
