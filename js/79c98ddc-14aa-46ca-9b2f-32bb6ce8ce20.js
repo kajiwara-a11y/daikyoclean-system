@@ -1,0 +1,695 @@
+/* ============================================================
+   App controller — routing, nav, search, notifications, charts
+   ============================================================ */
+
+const state = { mod:'dashboard', tab:0, charts:[], preview:null };
+
+/* ---- Role preview ---- */
+const NAV_PERM = {cust:'顧客・店舗',contract:'契約管理',sales:'営業活動',plan:'作業計画',ops:'作業実行・報告',fleet:'配車・車両',doc:'作業報告書',invoice:'請求管理',revenue:'売上管理',bi:'BI分析',master:'作業マスタ',integ:'外部連携',auth:'権限管理',common:'共通・ログ'};
+const ROLE_LANDING = {sales:'dashboard',field:'ops',fin:'invoice',admin:'dashboard'};
+function roleLevel(key,navId){
+  if(navId==='dashboard') return 'F';
+  const idx = PERM_MODS.indexOf(NAV_PERM[navId]);
+  return idx<0 ? 'F' : PERM[key][idx];
+}
+const LVL_LABEL = {F:'フル',E:'編集可',R:'参照のみ',N:'非表示'};
+function enterPreview(key){
+  if(!state.preview) state.prevMod = {mod:state.mod, tab:state.tab};
+  state.preview = key;
+  const role = ROLES.find(r=>r.key===key);
+  document.getElementById('previewBar').classList.add('on');
+  document.querySelector('.app').classList.add('preview-on');
+  document.getElementById('pvRoleName').textContent = role.name;
+  const cnt = NAV.filter(n=>n.type==='item' && roleLevel(key,n.id)!=='N').length;
+  document.getElementById('pvMeta').textContent = `アクセス可能：${cnt}メニュー`;
+  renderSidebar();
+  route(ROLE_LANDING[key]||'dashboard',0);
+  document.querySelector('.main').scrollTop=0;
+}
+function exitPreview(){
+  state.preview = null;
+  document.getElementById('previewBar').classList.remove('on');
+  document.querySelector('.app').classList.remove('preview-on');
+  renderSidebar();
+  const p = state.prevMod || {mod:'dashboard',tab:0};
+  route(p.mod, p.tab);
+}
+
+/* ---- Sidebar ---- */
+function renderSidebar(){
+  const side = document.getElementById('side');
+  const pv = state.preview;
+  // group nav into categories with items as children
+  const groups=[]; let cur={label:null,items:[]};
+  NAV.forEach(n=>{
+    if(n.type==='cat'){ if(cur.items.length||cur.label) groups.push(cur); cur={label:n.label,items:[]}; }
+    else if(n.type==='item'){ cur.items.push(n); }
+  });
+  groups.push(cur);
+  let h='';
+  groups.forEach(g=>{
+    const items = g.items.filter(n=> !(pv && roleLevel(pv,n.id)==='N'));
+    if(!items.length) return;                 // hide empty category in preview
+    if(g.label) h+=`<div class="nav-cat"><div class="cl">${g.label}</div></div>`;
+    items.forEach(n=>{
+      const lvl = pv ? roleLevel(pv,n.id) : 'F';
+      const ro = pv && lvl==='R';
+      h+=`<div class="nav-item ${ro?'ro':''}" data-id="${n.id}" onclick="route('${n.id}')">
+        ${ic(n.icon,'ni-ic')}<span>${n.name}</span>${
+          ro ? `<span class="ro-badge">参照</span>` : (n.badge?`<span class="ni-badge">${n.badge}</span>`:'')
+        }</div>`;
+    });
+  });
+  side.innerHTML = h + `<div class="side-foot"><span class="dot"></span>${pv?'プレビューモード':'システム稼働中 · v2.4'}</div>`;
+}
+
+/* ---- Page head ---- */
+function renderHead(){
+  const [t,lead] = TITLES[state.mod];
+  const catFor = id=>{ // find category label for breadcrumb
+    let cur='メイン';
+    for(const n of NAV){ if(n.type==='cat') cur=n.label; if(n.type==='item'&&n.id===id) return cur; }
+    return cur;
+  };
+  const tabs = TABS[state.mod]||[];
+  document.getElementById('crumb').innerHTML =
+    `<span>${catFor(state.mod)}</span><span class="sep">›</span><b>${t}</b>`;
+  document.getElementById('ptitle').innerHTML =
+    `<h1>${t}</h1><span class="lead">${lead}</span>`;
+  const tabsEl = document.getElementById('ptabs');
+  if(tabs.length){
+    tabsEl.style.display='flex';
+    tabsEl.innerHTML = tabs.map((tb,i)=>`<div class="ptab ${i===state.tab?'active':''}" onclick="setTab(${i})">${tb}</div>`).join('');
+  } else { tabsEl.style.display='none'; tabsEl.innerHTML=''; }
+}
+
+/* ---- Render page ---- */
+function renderPage(){
+  // destroy charts
+  state.charts.forEach(c=>{try{c.destroy()}catch(e){}});
+  state.charts=[];
+  const fn = SCREENS[state.mod];
+  let html = fn ? fn(state.tab) : `<div class="empty">${ic('info')}<div class="et">準備中</div></div>`;
+  // read-only banner in preview mode
+  if(state.preview){
+    const lvl = roleLevel(state.preview, state.mod);
+    const rn = ROLES.find(r=>r.key===state.preview).name;
+    if(lvl==='R') html = `<div class="note warn">${ic('info')}<div>この画面は <b>${rn}</b> では<b>参照のみ</b>です。編集・登録はできません。</div></div>` + html;
+  }
+  document.getElementById('page').innerHTML = html;
+  // disable action buttons on read-only preview screens
+  if(state.preview && roleLevel(state.preview,state.mod)==='R'){
+    document.querySelectorAll('#page .btn.primary, #page .btn.eco').forEach(b=>{
+      b.style.opacity='.45'; b.style.pointerEvents='none';
+    });
+  }
+  bindSegmented();
+  setTimeout(()=>initCharts(),30);
+  document.querySelector('.main').scrollTop=0;
+}
+
+/* ---- Routing ---- */
+function route(id, tab=0){
+  if(!SCREENS[id]) return;
+  // preview guard: block hidden modules for the role
+  if(state.preview && roleLevel(state.preview,id)==='N'){ toast('この権限ではアクセスできません'); return; }
+  state.mod=id; state.tab=tab;
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.dataset.id===id));
+  renderHead(); renderPage();
+  if(!state.preview){ try{ localStorage.setItem('dk_route', JSON.stringify({mod:id,tab})); }catch(e){} }
+  closeCmd(); closeDropdowns();
+}
+function setTab(i){
+  state.tab=i;
+  document.querySelectorAll('#ptabs .ptab').forEach((el,idx)=>el.classList.toggle('active',idx===i));
+  renderPage();
+  try{ localStorage.setItem('dk_route', JSON.stringify({mod:state.mod,tab:i})); }catch(e){}
+}
+
+/* ---- In-page segmented controls (toggle + panel switch) ---- */
+function bindSegmented(){
+  document.querySelectorAll('.segmented').forEach(g=>{
+    g.querySelectorAll('.seg').forEach((s,i)=>{
+      s.onclick=()=>{
+        g.querySelectorAll('.seg').forEach(x=>x.classList.remove('active'));
+        s.classList.add('active');
+        const sg=g.dataset.sg;
+        if(sg){
+          const panels=document.querySelector(`.seg-panels[data-sg="${sg}"]`);
+          if(panels){
+            panels.querySelectorAll(':scope > .seg-panel').forEach(p=>{ p.style.display = (p.dataset.i==String(i))?'':'none'; });
+            // (re)draw charts that may live inside the now-visible panel
+            setTimeout(()=>initCharts(),20);
+          }
+        }
+      };
+    });
+  });
+}
+
+/* ---- Drawer (detail / form / document) ---- */
+function showDrawer(){ document.getElementById('drawerMask').classList.add('open'); document.getElementById('drawer').classList.add('open'); }
+function rowTitle(row){ if(!row) return ''; const c=[...row.querySelectorAll('td')].map(td=>td.innerText.trim()); return c[1]||c[0]||''; }
+
+function openDrawer(rowEl){
+  const cells = [...rowEl.querySelectorAll('td')].map(td=>td.innerText.trim());
+  const headers = [...rowEl.closest('table').querySelectorAll('thead th')].map(th=>th.innerText.trim());
+  const title = cells[1]||cells[0]||'詳細';
+  const code = cells[0]||'';
+  let kv='';
+  headers.forEach((hd,i)=>{ if(i>1 && cells[i] && hd && cells[i]!=='') kv+=`<dt>${hd}</dt><dd>${cells[i]}</dd>`; });
+  document.getElementById('drawerTitle').textContent = title;
+  document.getElementById('drawerSub').textContent = code;
+  document.getElementById('drawerBody').innerHTML = `
+    <dl class="kv">${kv||`<dt>コード</dt><dd>${code}</dd>`}</dl>
+    <div class="divline"></div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:10px">最近のアクティビティ</div>
+    <ul class="timeline">
+      <li><div class="tt">2026/05/28</div><div class="tx">作業完了報告を受領</div></li>
+      <li class="eco"><div class="tt">2026/05/20</div><div class="tx">情報を更新</div></li>
+      <li><div class="tt">2026/04/01</div><div class="tx">レコードを登録</div></li>
+    </ul>`;
+  document.getElementById('drawerFoot').innerHTML =
+    `<button class="btn primary" onclick="openForm('${esc(title)} の編集','edit')">編集する</button>
+     <button class="btn" onclick="closeDrawer()">閉じる</button>`;
+  showDrawer();
+}
+function openDetail(title,sub){
+  document.getElementById('drawerTitle').textContent = title;
+  document.getElementById('drawerSub').textContent = sub||'';
+  document.getElementById('drawerBody').innerHTML = `
+    <dl class="kv"><dt>状態</dt><dd><span class="tag t-green">有効</span></dd><dt>担当</dt><dd>梶原 健司</dd><dt>更新日</dt><dd>2026/05/28</dd></dl>
+    <div class="divline"></div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:10px">最近のアクティビティ</div>
+    <ul class="timeline"><li><div class="tt">2026/05/28</div><div class="tx">内容を確認</div></li><li class="eco"><div class="tt">2026/04/01</div><div class="tx">レコードを登録</div></li></ul>`;
+  document.getElementById('drawerFoot').innerHTML =
+    `<button class="btn primary" onclick="openForm('${esc(title)} の編集','edit')">編集する</button><button class="btn" onclick="closeDrawer()">閉じる</button>`;
+  showDrawer();
+}
+function openForm(title,mode){
+  document.getElementById('drawerTitle').textContent = title;
+  document.getElementById('drawerSub').textContent = mode==='edit'?'編集モード':'新規作成';
+  const billing = /請求|手動登録|売上/.test(title);
+  const body = billing ? `
+    <div style="display:grid;gap:15px">
+      <div class="fld"><label>請求先<span class="req">*</span></label><select><option>みなとフード本部経理</option><option>関西モール 管理本部</option><option>グルメテーブル中部FC</option></select></div>
+      <div class="fld"><label>対象作業</label><select><option>グリストラップ清掃</option><option>排水管高圧洗浄</option><option>雑排水槽清掃</option><option>産業廃棄物 収集運搬</option></select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px">
+        <div class="fld"><label>計上日</label><input type="date" value="2026-05-31"></div>
+        <div class="fld"><label>金額（税抜）<span class="req">*</span></label><input placeholder="¥"></div>
+      </div>
+      <div class="fld"><label>区分</label><select><option>手動</option><option>自動</option></select></div>
+      <div class="fld"><label>備考</label><textarea placeholder="手動計上の理由、根拠資料など"></textarea></div>
+    </div>` : `
+    <div style="display:grid;gap:15px">
+      <div class="fld"><label>名称<span class="req">*</span></label><input value="${mode==='edit'?'みなとフード 栄町店':''}" placeholder="入力してください"></div>
+      <div class="fld"><label>区分</label><select><option>グリストラップ清掃</option><option>排水管高圧洗浄</option><option>雑排水槽清掃</option><option>産業廃棄物 収集運搬</option></select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px">
+        <div class="fld"><label>頻度</label><select><option>月次</option><option>季次</option><option>半年</option><option>年次</option></select></div>
+        <div class="fld"><label>単価</label><input value="${mode==='edit'?'¥24,000':''}" placeholder="¥"></div>
+      </div>
+      <div class="fld"><label>担当</label><select><option>梶原</option><option>佐藤</option><option>鈴木</option><option>高橋</option></select></div>
+      <div class="fld"><label>備考</label><textarea placeholder="夜間作業の可否、入館手続きなど"></textarea></div>
+    </div>`;
+  document.getElementById('drawerBody').innerHTML = body;
+  document.getElementById('drawerFoot').innerHTML =
+    `<button class="btn primary" onclick="toast('${mode==='edit'?'変更を保存しました':'登録しました'}');closeDrawer()">${mode==='edit'?'保存する':'登録する'}</button>
+     <button class="btn ghost" onclick="closeDrawer()">キャンセル</button>`;
+  showDrawer();
+}
+function openDoc(title){
+  document.getElementById('drawerTitle').textContent = title;
+  document.getElementById('drawerSub').textContent = 'ドキュメントプレビュー';
+  document.getElementById('drawerBody').innerHTML = `
+    <div style="background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:var(--sh-1);padding:26px 24px;font-size:12px;line-height:1.7">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--brand);padding-bottom:12px;margin-bottom:16px">
+        <div><div style="font-weight:700;font-size:15px">${title}</div><div class="subtle" style="font-size:11px">株式会社ダイキョウクリーン</div></div>
+        <div style="text-align:right" class="subtle" style="font-size:11px">発行日 2026/06/01<br>登録番号 T1234567890123</div>
+      </div>
+      <table style="font-size:11.5px"><thead><tr><th>作業</th><th class="num">数量</th><th class="num">単価</th><th class="num">金額</th></tr></thead>
+      <tbody>
+        <tr><td>グリストラップ清掃</td><td class="num">1</td><td class="num">¥24,000</td><td class="num">¥24,000</td></tr>
+        <tr><td>排水管高圧洗浄</td><td class="num">1</td><td class="num">¥58,000</td><td class="num">¥58,000</td></tr>
+        <tr><td>雑排水槽清掃</td><td class="num">1</td><td class="num">¥96,000</td><td class="num">¥96,000</td></tr>
+      </tbody></table>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px"><div style="width:180px">
+        <div style="display:flex;justify-content:space-between"><span class="subtle">小計</span><b>¥178,000</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="subtle">消費税</span><b>¥17,800</b></div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:6px;padding-top:6px;font-size:14px"><span>合計</span><b style="color:var(--brand)">¥195,800</b></div>
+      </div></div>
+    </div>`;
+  document.getElementById('drawerFoot').innerHTML =
+    `<button class="btn primary" onclick="toast('PDFをダウンロードしました')">${ic('download')}ダウンロード</button>
+     <button class="btn" onclick="toast('印刷ダイアログを開きます')">印刷</button>
+     <button class="btn ghost" onclick="closeDrawer()">閉じる</button>`;
+  showDrawer();
+}
+function openCalDay(el){
+  const dn = el.querySelector('.dn') ? el.querySelector('.dn').textContent : '';
+  const evs = [...el.querySelectorAll('.cal-ev')].map(e=>e.textContent.trim());
+  document.getElementById('drawerTitle').textContent = `2026年6月${dn}日 の作業`;
+  document.getElementById('drawerSub').textContent = `${evs.length}件の予定`;
+  document.getElementById('drawerBody').innerHTML = evs.length
+    ? `<ul class="timeline">${evs.map((e,i)=>`<li class="${i%2?'eco':''}"><div class="tt">${9+i*2}:00 — ${11+i*2}:00</div><div class="tx">${e}</div></li>`).join('')}</ul>`
+    : `<div class="empty">${ic('calendar')}<div class="et">この日に予定はありません</div></div>`;
+  document.getElementById('drawerFoot').innerHTML =
+    `<button class="btn primary" onclick="openForm('作業を追加','new')">${ic('plus')}作業を追加</button><button class="btn" onclick="closeDrawer()">閉じる</button>`;
+  showDrawer();
+}
+function esc(s){ return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+function closeDrawer(){
+  document.getElementById('drawerMask').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+/* ---- Global action handler: makes every button / link do something ---- */
+function doAction(el){
+  const go = el.dataset.go;
+  if(go){ const [m,t]=go.split(':'); route(m, +t||0); return; }
+  const label = (el.innerText||'').replace(/\s+/g,'');
+  const row = el.closest('tr.row');
+  if(/詳細|表示|確認|照会|変更履歴|履歴/.test(label)){ row?openDrawer(row):openDetail(label); return; }
+  if(/編集|修正|更新手続/.test(label)){ openForm((row?rowTitle(row):'レコード')+' の編集','edit'); return; }
+  if(/契約化/.test(label)){ route('contract',0); return; }
+  if(/再調整/.test(label)){ openForm('作業の再調整','edit'); return; }
+  if(/^開始$|完了報告/.test(label)){ route('ops',1); return; }
+  if(/新規|登録|追加|作成/.test(label)){ openForm(label.replace(/＋?/,''),'new'); return; }
+  if(/PDF/.test(label)){ openDoc(row?rowTitle(row):'ドキュメント'); return; }
+  if(/^DL$|ダウンロード|CSV|出力/.test(label)){ toast('ダウンロードを開始しました'); return; }
+  if(/送信|メール/.test(label)){ toast('送信しました'); return; }
+  if(/生成|同期|取込|一括|今すぐ|最適ルート|ルート生成/.test(label)){ toast('処理を実行しました'); return; }
+  if(/絞り込み|^検索$/.test(label)){ toast('絞り込みを適用しました'); return; }
+  if(/再発行/.test(label)){ openDoc('請求書 再発行プレビュー'); return; }
+  if(/ファイル|選択|アップロード/.test(label)){ toast('ファイルを選択してください'); return; }
+  if(/タグ/.test(label)){ toast('タグを追加しました'); return; }
+  if(!label){ openForm('新規作成','new'); return; }
+  toast(label+' を実行しました');
+}
+
+/* ============================================================
+   顧客登録：Google Maps 住所自動取得 + 複数店舗
+   ============================================================ */
+const ZIP_DB = {
+  '530-0001':{addr:'大阪府大阪市北区梅田1丁目', geo:'34.7025, 135.4959'},
+  '542-0076':{addr:'大阪府大阪市中央区難波3丁目', geo:'34.6660, 135.5010'},
+  '650-0021':{addr:'兵庫県神戸市中央区三宮町1丁目', geo:'34.6913, 135.1955'},
+  '600-8216':{addr:'京都府京都市下京区東塩小路町', geo:'34.9858, 135.7588'},
+};
+function zipReady(v){ /* placeholder for live validation */ }
+// ジオコーディング結果キャッシュ（同一住所の API 呼出を抑制）
+var GEO_CACHE={};
+function mapsLookup(){
+  const zip=(document.getElementById('custZip').value||'').trim();
+  let hit, cached=false;
+  if(GEO_CACHE[zip]){
+    hit = GEO_CACHE[zip]; cached=true;
+  }else{
+    hit = ZIP_DB[zip] || {addr:'大阪府大阪市中央区栄町2-1-'+(Math.floor(Math.random()*40)+1), geo:(34.6+Math.random()*0.2).toFixed(4)+', '+(135.4+Math.random()*0.2).toFixed(4)};
+    if(zip) GEO_CACHE[zip]=hit;
+  }
+  document.getElementById('custAddr').value = hit.addr;
+  document.getElementById('custGeo').value = hit.geo;
+  const m=document.getElementById('mapPrev');
+  m.classList.add('loaded');
+  m.innerHTML = `<div class="map-grid"></div><div class="map-pin">${ic('pin')}</div><div class="map-cap">${hit.addr}<br><span>${hit.geo}</span></div>`;
+  toast(cached ? 'キャッシュから取得（API呼出なし）' : 'Google Maps から取得しました');
+}
+function addStoreRow(){
+  const wrap=document.getElementById('newStores');
+  const div=document.createElement('div');
+  div.innerHTML = newStoreRow('','','月次');
+  wrap.appendChild(div.firstElementChild);
+  recountStores();
+}
+function recountStores(){
+  const n=document.querySelectorAll('#newStores .store-row').length;
+  const el=document.getElementById('storeCnt'); if(el) el.textContent=n;
+}
+
+/* ============================================================
+   店舗CSV 一括インポート（プレビュー・検証）
+   ============================================================ */
+function openCsvImport(){
+  document.getElementById('drawerTitle').textContent='店舗CSV 一括インポート';
+  document.getElementById('drawerSub').textContent='複数店舗をまとめて登録（重複は店舗コードで判定）';
+  document.getElementById('drawerBody').innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn" onclick="toast('テンプレートCSV（店舗マスタ.csv）をダウンロードしました')">${ic('download')}テンプレートDL</button>
+      <select class="search" id="csvEnc" style="flex:1"><option>文字コード：自動判定</option><option>UTF-8</option><option>Shift-JIS</option></select>
+    </div>
+    <div class="csv-drop" onclick="csvLoad()">${ic('upload')}<div><b>CSVファイルをドロップ</b><br><span class="subtle" style="font-size:11.5px">または クリックして選択（店舗マスタ.csv）</span></div></div>
+    <div class="hint" style="margin:12px 0">${ic('info')}<span>列：店舗コード / 店舗名 / 郵便番号 / 住所 / 顧客 / 作業頻度。<b>店舗コード</b>で既存と重複判定（重複は上書き更新）。住所は Google Maps で自動補完。</span></div>
+    <div id="csvPreview"></div>`;
+  document.getElementById('drawerFoot').innerHTML =
+    `<button class="btn primary" id="csvImportBtn" style="opacity:.45;pointer-events:none" onclick="csvDoImport()">インポート</button><button class="btn" onclick="csvLoad()">サンプルを読込</button><button class="btn ghost" onclick="closeDrawer()">閉じる</button>`;
+  showDrawer();
+}
+const CSV_ROWS = [
+  {name:'みなとフード 心斎橋店', code:'S-104021', zip:'542-0085', area:'大阪市中央区', status:'ok'},
+  {name:'みなとフード 天王寺店', code:'S-104022', zip:'543-0055', area:'大阪市天王寺区', status:'ok'},
+  {name:'みなとフード 京都四条店', code:'S-104023', zip:'600-8008', area:'京都市下京区', status:'ok'},
+  {name:'みなとフード 三宮店', code:'S-104024', zip:'', area:'', status:'error', issues:['必須NG：郵便番号が未入力']},
+  {name:'みなとフード 西宮店', code:'S-104018', zip:'662-0911', area:'西宮市', status:'warn', issues:['重複：店舗コード既存（上書き更新）']},
+  {name:'南港フード 梅田店', code:'S-104025', zip:'530-0001', area:'大阪市北区', status:'warn', issues:['文字コード警告：Shift-JIS の可能性（要確認）']},
+];
+function csvLoad(){
+  const imp=CSV_ROWS.filter(r=>r.status!=='error').length;
+  const warn=CSV_ROWS.filter(r=>r.status==='warn').length;
+  const err=CSV_ROWS.filter(r=>r.status==='error').length;
+  const tagFor=r=> r.status==='ok' ? '<span class="tag t-green">OK</span>'
+      : (r.issues||[]).map(m=>`<span class="tag ${r.status==='error'?'t-red':'t-amber'}">${m}</span>`).join(' ');
+  document.getElementById('csvPreview').innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <span class="tag t-green nodot">取込可 ${imp}件</span>${warn?`<span class="tag t-amber nodot">警告 ${warn}件</span>`:''}${err?`<span class="tag t-red nodot">エラー ${err}件</span>`:''}
+    </div>
+    <div class="tbl-wrap" style="margin:0"><div class="scroll"><table><thead><tr><th>店舗コード</th><th>店舗名</th><th>郵便番号</th><th>検証</th></tr></thead><tbody>
+    ${CSV_ROWS.map(r=>`<tr class="row"><td class="mono">${r.code||'—'}</td><td><b>${r.name}</b><div class="subtle" style="font-size:11px">${r.area||'—'}</div></td><td class="mono">${r.zip||'—'}</td><td>${tagFor(r)}</td></tr>`).join('')}
+    </tbody></table></div></div>
+    <div class="hint" style="margin:10px 0 0">${ic('info')}<span>エラー行はスキップ、警告行は取込（後で要確認）。エラー行のみ修正して再アップロードできます。</span></div>`;
+  const b=document.getElementById('csvImportBtn'); b.style.opacity='1'; b.style.pointerEvents='auto';
+  toast('CSVを検証しました（取込可 '+imp+'件 / エラー '+err+'件）');
+}
+function csvDoImport(){
+  const imp=CSV_ROWS.filter(r=>r.status!=='error').length;
+  const err=CSV_ROWS.filter(r=>r.status==='error').length;
+  closeDrawer();
+  toast('店舗 '+imp+'件を取込しました'+(err?'（'+err+'件はエラーのためスキップ）':''));
+}
+
+/* ============================================================
+   請求先：宛先設定（各店舗宛／本社宛／代表店舗宛）+ 締日
+   ============================================================ */
+const BILLTO_STORES = ['みなとフード 栄町店','みなとフード 梅田北口店','グルメテーブル 三宮店','関西モール 春日井'];
+function openBillToForm(code){
+  document.getElementById('drawerTitle').textContent='請求宛先の設定';
+  document.getElementById('drawerSub').textContent=code+' · 宛先パターン／締日';
+  document.getElementById('drawerBody').innerHTML = `
+    <div style="display:grid;gap:15px">
+      <div class="fld"><label>宛先パターン<span class="req">*</span></label>${sel2(['各店舗宛','本社宛','代表店舗宛'])}</div>
+      <div class="fld"><label>代表店舗 <span class="subtle" style="font-weight:500">（代表店舗宛の場合）</span></label>${sel2(BILLTO_STORES)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px">
+        <div class="fld"><label>締日</label>${sel2(['末日','20日','15日','10日','25日'])}</div>
+        <div class="fld"><label>適用開始月</label><input type="month" value="2026-07"></div>
+      </div>
+      ${note('変更は次回締め分から適用されます。発行済みの請求書は再発行が必要です。','warn','warn')}
+    </div>`;
+  document.getElementById('drawerFoot').innerHTML =
+    `<button class="btn primary" onclick="toast('宛先設定を保存しました');closeDrawer()">設定を保存</button>
+     <button class="btn ghost" onclick="closeDrawer()">キャンセル</button>`;
+  showDrawer();
+}
+
+/* ============================================================
+   入金管理：消込・入金登録（残額算出）
+   ============================================================ */
+// 本社（親会社）ごとの請求額・既入金（プロト固定値）
+const PAYMENTS = {
+  'みなとフードHD':       {billed:2728000, paid:2728000},
+  '関西モール管理':       {billed:1298000, paid:800000},
+  '中央総合病院グループ': {billed:185000,  paid:0},
+  'グルメテーブル中部FC': {billed:1078000, paid:1100000},
+};
+const yen = n => '¥'+Number(n).toLocaleString('ja-JP');
+function openPaymentForm(name){
+  const p = PAYMENTS[name] || {billed:0, paid:0};
+  const rest = p.billed - p.paid;
+  const restTxt = rest>0 ? `残額 ${yen(rest)}` : (rest<0 ? `過入金 ${yen(-rest)}` : '残額なし（消込可）');
+  document.getElementById('drawerTitle').textContent='入金消込';
+  document.getElementById('drawerSub').textContent=name;
+  document.getElementById('drawerBody').innerHTML = `
+    <dl class="kv"><dt>請求額</dt><dd>${yen(p.billed)}</dd><dt>入金済</dt><dd>${yen(p.paid)}</dd><dt>差額</dt><dd>${rest===0?'¥0':(rest>0?'▲':'+')+yen(Math.abs(rest))}</dd></dl>
+    <div class="divline"></div>
+    <div style="display:grid;gap:15px">
+      <div class="fld"><label>入金額<span class="req">*</span></label><input id="payAmt" placeholder="¥" value="${rest>0?rest:''}" oninput="payRest('${esc(name)}',this.value)"></div>
+      <div class="fld"><label>入金日</label><input type="date" value="2026-06-22"></div>
+      <div class="fld"><label>充当先（複数選択で合算消込）</label><select><option>自動充当（古い請求書から）</option><option>INV-202605-0011</option><option>INV-202605-0021</option></select></div>
+    </div>
+    ${note('1件の入金を複数請求書に合算消込できます。')}
+    <div class="hint" style="margin-top:10px">${ic('info')}<span id="payHint">${restTxt}</span></div>`;
+  document.getElementById('drawerFoot').innerHTML =
+    `<button class="btn primary" onclick="payRest('${esc(name)}',document.getElementById('payAmt').value,true);closeDrawer()">消込を確定</button>
+     <button class="btn ghost" onclick="closeDrawer()">キャンセル</button>`;
+  showDrawer();
+}
+function payRest(name,val,commit){
+  const p = PAYMENTS[name] || {billed:0, paid:0};
+  const input = parseInt(String(val).replace(/[¥,]/g,''),10) || 0;
+  const rest = p.billed - (p.paid + input);
+  const msg = rest>0 ? `残額 ${yen(rest)}` : (rest<0 ? `過入金 ${yen(-rest)}` : '残額なし（全額消込）');
+  const hint=document.getElementById('payHint'); if(hint) hint.textContent=msg;
+  if(commit) toast('入金を登録しました（'+msg+'）');
+}
+
+/* ============================================================
+   取引履歴：種別フィルタ + キーワード検索
+   ============================================================ */
+let txnState={q:'',kind:'すべて',period:'すべて',amt:'すべて',by:'すべて'};
+// 「期間：今月」のように接頭辞付きの値から実値だけを取り出す
+function txnVal(v){ return String(v||'').split('：').pop(); }
+// h.date（YYYY/MM/DD）を期間バンドで判定。基準日は本日（プロト）2026/06/22。
+function txnInPeriod(date,band){
+  if(band==='すべて') return true;
+  const m=/(\d{4})\/(\d{2})\/(\d{2})/.exec(date); if(!m) return false;
+  const y=+m[1], mo=+m[2];
+  if(band==='今月')  return y===2026 && mo===6;
+  if(band==='先月')  return y===2026 && mo===5;
+  if(band==='今年度') return (y===2026 && mo>=4) || (y===2027 && mo<=3); // 4月〜翌3月
+  return true;
+}
+// 金額文字列（¥2,728,000 / ¥2,480,000/月 / —）を数値化。取れなければ null。
+function txnAmtNum(amt){
+  const s=String(amt||'').replace(/[¥,]/g,'').replace(/\/月$/,'').trim();
+  if(!s || s==='—') return null;
+  const n=parseInt(s,10); return isNaN(n)?null:n;
+}
+function txnInAmt(amt,band){
+  if(band==='すべて') return true;
+  const n=txnAmtNum(amt); if(n===null) return false;
+  if(band==='〜10万')   return n<100000;
+  if(band==='10〜100万') return n>=100000 && n<1000000;
+  if(band==='100万〜')   return n>=1000000;
+  return true;
+}
+function applyTxn(){
+  const q=txnState.q.trim().toLowerCase(), k=txnState.kind;
+  const period=txnState.period, amtB=txnState.amt, by=txnState.by;
+  const rows = TXN_HISTORY.filter(h=>
+      (k==='すべて'||h.kind===k) &&
+      (by==='すべて'||h.by===by) &&
+      txnInPeriod(h.date,period) &&
+      txnInAmt(h.amt,amtB) &&
+      (!q || (h.cust+h.title+h.by+h.kind).toLowerCase().includes(q)))
+    .map(h=>[h.date, tag(h.cls,h.kind), `<b>${h.cust}</b>`, h.title, h.by, `<span class="num">${h.amt}</span>`]);
+  document.getElementById('txnWrap').innerHTML = rows.length
+    ? tbl([{t:'日付'},{t:'種別'},{t:'顧客'},{t:'内容'},{t:'担当'},{t:'金額',num:true}],rows,{click:true})
+    : `<div class="empty">${ic('search')}<div class="et">該当する取引履歴がありません</div></div>`;
+}
+function filterTxn(v){ txnState.q=v; applyTxn(); }
+function txnFilter(field,val){ txnState[field]=txnVal(val); applyTxn(); }
+function txnKind(k,el){ txnState.kind=k; el.parentNode.querySelectorAll('.seg').forEach(s=>s.classList.remove('active')); el.classList.add('active'); applyTxn(); }
+
+/* ============================================================
+   全域検索（顧客・請求 ライブ）
+   ============================================================ */
+function runGlobalSearch(v){ document.getElementById('gsResults').innerHTML = globalSearchResults(v); }
+function quickSearch(v){ const i=document.getElementById('gsInput'); if(i){ i.value=v; runGlobalSearch(v); } }
+
+/* ---- Command palette ---- */
+function buildCmdIndex(){
+  const idx=[];
+  NAV.forEach(n=>{ if(n.type==='item'){
+    idx.push({mod:n.id,tab:0,name:n.name,cat:'モジュール',icon:n.icon});
+    (TABS[n.id]||[]).forEach((tb,i)=>{ if(i>0) idx.push({mod:n.id,tab:i,name:n.name+' › '+tb,cat:n.name,icon:n.icon}); });
+  }});
+  return idx;
+}
+let CMD_INDEX=[], cmdSel=0, cmdFiltered=[];
+function openCmd(){
+  document.getElementById('cmdMask').classList.add('open');
+  const inp=document.getElementById('cmdInput'); inp.value=''; inp.focus();
+  filterCmd('');
+}
+function closeCmd(){ document.getElementById('cmdMask').classList.remove('open'); }
+function filterCmd(q){
+  q=q.trim().toLowerCase();
+  cmdFiltered = q ? CMD_INDEX.filter(x=>x.name.toLowerCase().includes(q)) : CMD_INDEX;
+  cmdSel=0; renderCmd();
+}
+function renderCmd(){
+  const list=document.getElementById('cmdList');
+  if(!cmdFiltered.length){ list.innerHTML=`<div class="cmd-grp" style="padding:18px 12px;color:var(--faint)">該当なし</div>`; return; }
+  let h='', lastCat=null;
+  cmdFiltered.forEach((x,i)=>{
+    if(x.cat!==lastCat){ h+=`<div class="cgrp">${x.cat}</div>`; lastCat=x.cat; }
+    h+=`<div class="crow ${i===cmdSel?'sel':''}" data-i="${i}" onmouseenter="cmdSel=${i};hiCmd()" onclick="goCmd(${i})">
+      ${ic(x.icon,'ci2')}<span>${x.name}</span><span class="cm">↵</span></div>`;
+  });
+  list.innerHTML=h;
+}
+function hiCmd(){ document.querySelectorAll('#cmdList .crow').forEach((el,i)=>el.classList.toggle('sel',i===cmdSel)); }
+function goCmd(i){ const x=cmdFiltered[i]; if(x) route(x.mod,x.tab); }
+
+/* ---- Role panel jump (権限制御) ---- */
+function setRolePanel(i){
+  const segs = document.querySelectorAll('#page .segmented .seg');
+  if(segs[i]) segs[i].click();
+}
+
+/* ---- Notifications ---- */
+function renderNotifs(){
+  document.getElementById('notifList').innerHTML = NOTIFS.map(n=>`
+    <div class="ntf" onclick="route('${n.go.split(':')[0]}',${+n.go.split(':')[1]||0})"><div class="nic ${n.ic}">${ic(n.icon)}</div>
+    <div><div class="ntx">${n.tx}</div><div class="ntm">${n.tm}</div></div></div>`).join('');
+}
+function toggleNotif(e){
+  e.stopPropagation();
+  const dd=document.getElementById('notifDrop');
+  const open=dd.classList.contains('open');
+  closeDropdowns();
+  if(!open) dd.classList.add('open');
+}
+function closeDropdowns(){ document.querySelectorAll('.dropdown').forEach(d=>d.classList.remove('open')); document.querySelector('.tb-user')?.classList.remove('open'); }
+
+/* ---- User menu (role preview entry) ---- */
+function renderUserRoles(){
+  const dot = {sales:'#2b6fb3',field:'#0b7c8c',fin:'#2f9e6b',admin:'#d2483f'};
+  let h = `<div class="um-role ${!state.preview?'active':''}" onclick="exitToSelf()">
+      <span class="ur-dot" style="background:var(--ink-2)"></span>
+      <div><div class="ur-n">通常表示（自分）</div><div class="ur-m">梶原 健司 · 管理者</div></div>
+      <span class="ur-go">${state.preview?'戻る':''}</span></div>`;
+  h += ROLES.map(r=>`
+    <div class="um-role ${state.preview===r.key?'active':''}" onclick="previewFromMenu('${r.key}')">
+      <span class="ur-dot" style="background:${dot[r.key]}"></span>
+      <div><div class="ur-n">${r.name}</div><div class="ur-m">${r.users}名 · ${r.desc.split('。')[0]}</div></div>
+      <span class="ur-go">表示</span></div>`).join('');
+  document.getElementById('umRoles').innerHTML = h;
+}
+function toggleUserMenu(e){
+  e.stopPropagation();
+  const dd=document.getElementById('userMenu');
+  const open=dd.classList.contains('open');
+  closeDropdowns();
+  if(!open){ renderUserRoles(); dd.classList.add('open'); document.querySelector('.tb-user').classList.add('open'); }
+}
+function previewFromMenu(key){ closeDropdowns(); enterPreview(key); }
+function exitToSelf(){ closeDropdowns(); if(state.preview) exitPreview(); }
+
+/* ---- Toast ---- */
+function toast(msg){
+  const wrap=document.getElementById('toastWrap');
+  const t=document.createElement('div');
+  t.className='toast';
+  t.innerHTML=`<span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>${msg}`;
+  wrap.appendChild(t);
+  setTimeout(()=>{ t.style.transition='.3s'; t.style.opacity='0'; t.style.transform='translateY(8px)'; setTimeout(()=>t.remove(),300); },2400);
+}
+
+/* ============================================================
+   Charts
+   ============================================================ */
+const PAL = { brand:'#0b7c8c', brand2:'#5cb6c2', eco:'#2f9e6b', amber:'#c9821a', blue:'#2b6fb3', gray:'#cdd9dc' };
+const months=['6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月','5月'];
+
+function baseOpts(extra={}){
+  return Object.assign({
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false,labels:{font:{family:'Noto Sans JP',size:11}}}},
+    scales:{
+      x:{grid:{display:false},ticks:{font:{family:'Noto Sans JP',size:10},color:'#6a818a'}},
+      y:{grid:{color:'#eef3f4'},border:{display:false},ticks:{font:{family:'Noto Sans JP',size:10},color:'#6a818a'}}
+    }
+  }, extra);
+}
+function mk(id,cfg){ const c=document.getElementById(id); if(!c)return; const ex=Chart.getChart(c); if(ex)ex.destroy(); state.charts.push(new Chart(c,cfg)); }
+
+function lineYoY(id){
+  mk(id,{type:'line',data:{labels:months,datasets:[
+    {label:'当年度',data:[34,35,37,34,36,38,42,31,33,37,38,38.6],borderColor:PAL.brand,backgroundColor:'rgba(11,124,140,.10)',fill:true,tension:.35,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+    {label:'前年度',data:[32,33,35,33,34,36,40,30,32,35,36,36.6],borderColor:PAL.gray,borderDash:[5,4],tension:.35,borderWidth:2,pointRadius:0,fill:false},
+  ]},options:baseOpts({plugins:{legend:{display:true,position:'top',align:'end',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,font:{family:'Noto Sans JP',size:11}}}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#6a818a'}},y:{grid:{color:'#eef3f4'},border:{display:false},ticks:{callback:v=>'¥'+v+'M',font:{size:10},color:'#6a818a'}}}})});
+}
+function doughnutWork(id){
+  mk(id,{type:'doughnut',data:{labels:['グリストラップ清掃','排水管高圧洗浄','雑排水槽清掃','産廃・その他'],datasets:[{data:[52,24,15,9],backgroundColor:[PAL.brand,PAL.brand2,PAL.eco,PAL.amber],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{boxWidth:9,boxHeight:9,usePointStyle:true,font:{family:'Noto Sans JP',size:11},padding:10}}}}});
+}
+function barHCust(id){
+  mk(id,{type:'bar',data:{labels:['みなとフード','関西モール','グルメテーブル','中央病院G','大学生協'],datasets:[{data:[3.5,1.8,1.1,0.5,0.4],backgroundColor:PAL.brand,borderRadius:5,barThickness:16}]},
+    options:baseOpts({indexAxis:'y',scales:{x:{grid:{color:'#eef3f4'},border:{display:false},ticks:{callback:v=>'¥'+v+'M',font:{size:10},color:'#6a818a'}},y:{grid:{display:false},ticks:{font:{size:11},color:'#3a525b'}}}})});
+}
+function barArea(id){
+  mk(id,{type:'bar',data:{labels:['大阪','兵庫','京都','関東','その他'],datasets:[{data:[18,9.5,6,12,3],backgroundColor:[PAL.brand,PAL.brand2,PAL.eco,PAL.blue,PAL.gray],borderRadius:5,barThickness:30}]},
+    options:baseOpts({scales:{y:{grid:{color:'#eef3f4'},border:{display:false},ticks:{callback:v=>'¥'+v+'M',font:{size:10},color:'#6a818a'}}}})});
+}
+function barSimple(id,labels,data,color){
+  mk(id,{type:'bar',data:{labels,datasets:[{data,backgroundColor:color||PAL.brand,borderRadius:5,barThickness:26}]},options:baseOpts()});
+}
+
+function initCharts(){
+  const m=state.mod, t=state.tab;
+  if(m==='dashboard'){ lineYoY('d1'); doughnutWork('d2'); barHCust('d3'); barArea('d4'); }
+  if(m==='sales' && t===3) lineYoY('sa1');
+  if(m==='revenue'){ if(t===1){ barSimple('rv1',months,[34,35,37,34,36,38,42,31,33,37,38,38.6]); barSimple('rvy1',['2022','2023','2024','2025','2026'],[362,388,402,412,77],PAL.eco); } if(t===2) barHCust('rv2'); if(t===3) doughnutWork('rv3'); }
+  if(m==='bi'){
+    if(t===0){ lineYoY('bm1'); doughnutWork('bm2'); barHCust('bm3'); barArea('bm4'); }
+    if(t===1){ barSimple('bi1',['2022','2023','2024','2025','2026'],[362,388,402,412,38.6],PAL.eco); barSimple('bi2',['2023','2024','2025','2026'],[7.2,3.6,2.5,4.8],PAL.amber); }
+    if(t===2) barHCust('bi3');
+    if(t===3){ barHCust('bi4'); barArea('bi5'); }
+    if(t===4) barSimple('bi6',['GT清掃','排水管','雑排水槽','産廃','緊急'],[182,96,61,42,21],PAL.brand);
+    if(t===5) barHCust('bi7');
+  }
+}
+
+/* ============================================================
+   Init + global key handling
+   ============================================================ */
+function init(){
+  renderSidebar();
+  renderNotifs();
+  CMD_INDEX = buildCmdIndex();
+
+  // restore route
+  let start={mod:'dashboard',tab:0};
+  try{ const s=JSON.parse(localStorage.getItem('dk_route')); if(s&&SCREENS[s.mod]) start=s; }catch(e){}
+  route(start.mod, start.tab||0);
+
+  // search inputs open palette
+  const top=document.getElementById('topSearch');
+  top.addEventListener('focus',openCmd);
+  top.addEventListener('click',openCmd);
+
+  const cmdInput=document.getElementById('cmdInput');
+  cmdInput.addEventListener('input',e=>filterCmd(e.target.value));
+
+  document.addEventListener('keydown',e=>{
+    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){ e.preventDefault(); openCmd(); return; }
+    if(document.getElementById('cmdMask').classList.contains('open')){
+      if(e.key==='Escape') closeCmd();
+      else if(e.key==='ArrowDown'){ e.preventDefault(); cmdSel=Math.min(cmdSel+1,cmdFiltered.length-1); hiCmd(); ensureVis(); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); cmdSel=Math.max(cmdSel-1,0); hiCmd(); ensureVis(); }
+      else if(e.key==='Enter'){ e.preventDefault(); goCmd(cmdSel); }
+    }
+    if(e.key==='Escape') closeDrawer();
+  });
+
+  document.getElementById('cmdMask').addEventListener('click',e=>{ if(e.target.id==='cmdMask') closeCmd(); });
+  document.addEventListener('click',closeDropdowns);
+  document.getElementById('notifDrop').addEventListener('click',e=>e.stopPropagation());
+
+  // Global action handler (capture phase) — every button/link/chip/calendar-day acts
+  document.addEventListener('click',e=>{
+    const cal = e.target.closest('.cal-d');
+    if(cal && document.getElementById('page').contains(cal)){ e.stopPropagation(); openCalDay(cal); return; }
+    const el = e.target.closest('.btn, .lnk, .chip.add, .ph .sub.link');
+    if(!el) return;
+    if(el.hasAttribute('onclick')) return;        // respect explicit handlers
+    if(!document.getElementById('page').contains(el)) return; // only content area
+    e.stopPropagation();                          // prevent row-drawer double fire
+    doAction(el);
+  }, true);
+}
+function ensureVis(){
+  const el=document.querySelector('#cmdList .crow.sel');
+  if(el) el.scrollIntoView({block:'nearest'});
+}
+if(document.readyState==='loading') window.addEventListener('DOMContentLoaded',init);
+else init();
