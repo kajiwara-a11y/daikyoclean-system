@@ -521,8 +521,31 @@ const MGMT_DETAIL = {
     {code:'S-205390', name:'みなとフード 武蔵小杉店',   area:'川崎市中原区', status:'閉店',   sc:'t-red'},
   ]},
 };
+var custStoreMgmt=''; // 店舗一覧を管理会社で絞り込むフィルタ（管理会社詳細の「店舗を見る」から設定）
+/* 店舗マスタ（共有）：店舗一覧 と 管理会社詳細 の双方がこのデータから描画する。
+   顧客＝運営チェーン、管理会社＝店舗が入居する施設/ビルの管理元（別軸）。mgmt='' は直接管理（管理会社なし） */
+const STORE_ROWS = [
+  {code:'S-204411', name:'みなとフード 栄町店',     cust:'みなとフードHD',       area:'大阪市中央区',   mgmt:'M-301', freq:'月次', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-204410', name:'みなとフード 梅田北口店', cust:'みなとフードHD',       area:'大阪市北区',     mgmt:'M-301', freq:'月2回', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-204388', name:'グルメテーブル 三宮店',   cust:'グルメテーブル中部FC', area:'神戸市中央区',   mgmt:'M-301', freq:'月次', fc:'t-teal', status:'開店準備中', sc:'t-amber'},
+  {code:'S-204202', name:'関西モール 梅田',         cust:'関西モール管理',       area:'大阪市北区',     mgmt:'M-301', freq:'週次', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-204150', name:'中央総合病院 本院',       cust:'中央総合病院グループ', area:'大阪市天王寺区', mgmt:'M-301', freq:'月2回', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-204051', name:'みなとフード 難波店',     cust:'みなとフードHD',       area:'大阪市浪速区',   mgmt:'M-301', freq:'月次', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-118803', name:'みなとフード 新宿南口店', cust:'みなとフードHD',       area:'東京都新宿区',   mgmt:'M-302', freq:'月次', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-118770', name:'グルメテーブル 品川店',   cust:'グルメテーブル中部FC', area:'東京都港区',     mgmt:'M-302', freq:'月次', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-118702', name:'みなとフード 大宮店',     cust:'みなとフードHD',       area:'さいたま市',     mgmt:'M-302', freq:'月次', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-118655', name:'みなとフード 千葉中央店', cust:'みなとフードHD',       area:'千葉市中央区',   mgmt:'M-302', freq:'月2回', fc:'t-teal', status:'移管手続中', sc:'t-amber'},
+  {code:'S-118590', name:'中央総合病院 横浜分院',   cust:'中央総合病院グループ', area:'横浜市西区',     mgmt:'M-302', freq:'月2回', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-205512', name:'みなとフード 川崎駅前店', cust:'みなとフードHD',       area:'川崎市川崎区',   mgmt:'M-303', freq:'月次', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-205480', name:'グルメテーブル 横浜西口店', cust:'グルメテーブル中部FC', area:'横浜市西区',   mgmt:'M-303', freq:'月次', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-205433', name:'みなとフード 蒲田店',     cust:'みなとフードHD',       area:'東京都大田区',   mgmt:'M-303', freq:'月次', fc:'t-teal', status:'営業中',     sc:'t-green'},
+  {code:'S-205390', name:'みなとフード 武蔵小杉店', cust:'みなとフードHD',       area:'川崎市中原区',   mgmt:'M-303', freq:'—',   fc:'t-gray', status:'閉店',       sc:'t-red'},
+  {code:'S-203901', name:'関西モール 春日井',       cust:'関西モール管理',       area:'愛知県春日井市', mgmt:'',     freq:'—',   fc:'t-gray', status:'閉店',       sc:'t-red'},
+];
+function viewMgmtStores(code){ custStoreMgmt=code; closeDrawer(); route('cust',5); }
 function openMgmtDetail(code){
   const m=MGMT_DETAIL[code]; if(!m) return;
+  const stores=STORE_ROWS.filter(s=>s.mgmt===code);
   document.getElementById('drawerTitle').textContent=m.name;
   document.getElementById('drawerSub').textContent=code+' · '+m.area;
   document.getElementById('drawerBody').innerHTML = `
@@ -531,13 +554,14 @@ function openMgmtDetail(code){
       <dt>管理店舗</dt><dd>${m.count.toLocaleString()} 店舗</dd>
       <dt>有効期間</dt><dd>${m.period}</dd>
     </dl>
+    ${note('管理会社は店舗が入居する<b>施設・ビルの管理元</b>です（顧客チェーンとは別軸）。','','info')}
     <div class="divline"></div>
-    <div style="font-weight:700;font-size:13px;margin:2px 0 9px">${ic('store')} 所属店舗 <span class="subtle" style="font-weight:500;font-size:11.5px">${m.count.toLocaleString()}件中 ${m.stores.length}件を表示</span></div>
-    <div class="tbl-wrap" style="margin:0"><div class="scroll"><table><thead><tr><th>店舗コード</th><th>店舗名</th><th>エリア</th><th>状態</th></tr></thead><tbody>
-      ${m.stores.map(s=>`<tr class="row"><td class="mono">${s.code}</td><td><b>${s.name}</b></td><td>${s.area}</td><td><span class="tag ${s.sc}">${s.status}</span></td></tr>`).join('')}
+    <div style="font-weight:700;font-size:13px;margin:2px 0 9px">${ic('store')} 所属店舗 <span class="subtle" style="font-weight:500;font-size:11.5px">${m.count.toLocaleString()}件中 ${stores.length}件を表示</span></div>
+    <div class="tbl-wrap" style="margin:0"><div class="scroll"><table><thead><tr><th>店舗コード</th><th>店舗名</th><th>顧客</th><th>エリア</th><th>状態</th></tr></thead><tbody>
+      ${stores.map(s=>`<tr class="row"><td class="mono">${s.code}</td><td><b>${s.name}</b></td><td>${s.cust}</td><td>${s.area}</td><td><span class="tag ${s.sc}">${s.status}</span></td></tr>`).join('')}
     </tbody></table></div></div>
-    <div style="text-align:center;margin-top:11px"><span class="lnk" onclick="closeDrawer();route('cust',5)">店舗一覧で全 ${m.count.toLocaleString()} 店舗を見る →</span></div>`;
-  document.getElementById('drawerFoot').innerHTML=`<button class="btn" onclick="closeDrawer();route('cust',5)">店舗一覧へ</button><button class="btn ghost" onclick="closeDrawer()">閉じる</button>`;
+    <div style="text-align:center;margin-top:11px"><span class="lnk" onclick="viewMgmtStores('${code}')">店舗一覧でこの管理会社の店舗を見る →</span></div>`;
+  document.getElementById('drawerFoot').innerHTML=`<button class="btn" onclick="viewMgmtStores('${code}')">店舗一覧へ</button><button class="btn ghost" onclick="closeDrawer()">閉じる</button>`;
   showDrawer();
 }
 function openBillToForm(code){

@@ -88,6 +88,7 @@ function scr_dashboard(){
    顧客・店舗
    ============================================================ */
 function scr_cust(t){
+  if(t!==5) custStoreMgmt=''; // 店舗一覧以外へ移ったら管理会社フィルタを解除
   if(t===1) return scr_cust_new();
   if(t===2) return `<div class="grid2">
     ${panel(`${ic('customer','pic')}顧客分類`, tbl([{t:'分類コード'},{t:'分類名'},{t:'顧客数',num:true},''],[
@@ -212,17 +213,17 @@ function scr_cust_mgmt(){
   ])+note('管理会社の行の「詳細」で所属店舗を確認できます。切替（店舗移管）は履歴として追跡し、有効期間で世代管理します。');
 }
 function scr_cust_store(){
+  const mc=custStoreMgmt, meta=MGMT_DETAIL[mc]||{};
+  const rows=STORE_ROWS.filter(s=>!mc||s.mgmt===mc);
   return kpi([
     {l:'全店舗',v:'3,742',icon:'store'},{l:'今月 新規',v:'14',d:'',dir:'up',icon:'plus',accent:'eco'},
     {l:'今月 閉店',v:'6',dir:'down',icon:'store',accent:'amber'},{l:'移管手続中',v:'21',icon:'refresh'},
   ])+
-  toolbar(searchBox('店舗名・コードで検索…')+sel(['状態：すべて','営業中','閉店','開店準備中'])+sel(['エリア：すべて','関西','関東','中部'])+`<span class="spacer"></span><button class="btn" onclick="openCsvImport()">${ic('upload')}CSVインポート</button>`+btnCsv+btnNew('店舗登録'))+
-  tbl([{t:'店舗コード'},{t:'店舗名'},{t:'顧客'},{t:'エリア'},{t:'作業頻度'},{t:'状態'}],[
-    ['<span class="code">S-204411</span>','<b>みなとフード 栄町店</b>','みなとフードHD','大阪市中央区',tag('t-teal','月次'),tag('t-green','営業中')],
-    ['<span class="code">S-204410</span>','<b>みなとフード 梅田北口店</b>','みなとフードHD','大阪市北区',tag('t-teal','月2回'),tag('t-green','営業中')],
-    ['<span class="code">S-204388</span>','<b>グルメテーブル 三宮店</b>','グルメテーブル中部FC','神戸市中央区',tag('t-teal','月次'),tag('t-amber','開店準備中')],
-    ['<span class="code">S-203901</span>','<b>関西モール 春日井</b>','関西モール管理','愛知県春日井市',tag('t-gray','—'),tag('t-red','閉店')],
-  ],{click:true});
+  (mc?note(`管理会社「<b>${meta.name}</b>」が管理する店舗で絞り込み中（${meta.count?meta.count.toLocaleString():rows.length}店舗中 ${rows.length}件を表示）　<span class="lnk" onclick="custStoreMgmt='';route('cust',5)">絞り込み解除</span>`,'amber','filter'):'')+
+  toolbar(searchBox('店舗名・コードで検索…')+sel(['状態：すべて','営業中','閉店','開店準備中','移管手続中'])+sel(['エリア：すべて','関西','関東','中部'])+sel(['管理会社：すべて','関西施設サービス','東日本ビル管理','京浜メンテナンス','—（直接管理）'])+`<span class="spacer"></span><button class="btn" onclick="openCsvImport()">${ic('upload')}CSVインポート</button>`+btnCsv+btnNew('店舗登録'))+
+  tbl([{t:'店舗コード'},{t:'店舗名'},{t:'顧客'},{t:'管理会社'},{t:'エリア'},{t:'作業頻度'},{t:'状態'}],
+    rows.map(s=>['<span class="code">'+s.code+'</span>','<b>'+s.name+'</b>',s.cust,(MGMT_DETAIL[s.mgmt]||{}).name||'—（直接管理）',s.area,tag(s.fc,s.freq),tag(s.sc,s.status)]),
+  {click:true});
 }
 
 /* ---- 取引履歴（顧客ごと・全種別 + 検索） ---- */
