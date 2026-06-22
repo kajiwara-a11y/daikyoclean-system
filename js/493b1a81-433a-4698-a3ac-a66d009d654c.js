@@ -212,14 +212,58 @@ function scr_invoice(t){
     </div><div class="form-foot"><button class="btn primary" onclick="toast('CSVを出力しました')">${ic('download')}CSV出力</button></div><div class="hint">${ic('info')}<span>弥生販売・kintone連携フォーマットに対応。</span></div></div></div>
     <div class="panel"><div class="ph">${ic('upload','pic')}CSV取込</div><div class="pb">${note('入金消込・外部見積データの取込に対応。取込前にプレビュー検証されます。')}<button class="btn">${ic('upload')}ファイルを選択</button></div></div>
   </div>`;
-  // tab 0: 請求データ生成
-  return `<div class="flow"><span class="step done"><span class="sn">${ic('check')}</span>作業完了データ</span><span class="ar"></span><span class="step cur"><span class="sn">2</span>請求変換</span><span class="ar"></span><span class="step"><span class="sn">3</span>請求書生成</span><span class="ar"></span><span class="step"><span class="sn">4</span>電子請求</span></div>`+
-  toolbar(sel(['締日：5月末','20日','15日'])+`<button class="btn primary">${ic('bolt')}一括生成</button><button class="btn">個別生成</button><button class="btn">${ic('plus')}手動登録</button>`)+
-  tbl([{t:'請求先'},{t:'対象作業',num:true},{t:'金額(税抜)',num:true},{t:'消費税',num:true},{t:'合計',num:true},{t:'状態'},''],[
-    ['みなとフード本部経理','512','¥2,480,000','¥248,000','<b>¥2,728,000</b>',tag('t-blue','生成待ち'),A('確認')],
-    ['関西モール 管理本部','280','¥1,180,000','¥118,000','<b>¥1,298,000</b>',tag('t-blue','生成待ち'),A('確認')],
-    ['グルメテーブル中部FC','301','¥980,000','¥98,000','<b>¥1,078,000</b>',tag('t-green','生成済'),A('表示')],
-  ],{click:true});
+  // tab 0: 請求データ生成（+ 請求候補：完了報告→請求の2段階）
+  return `<div class="flow"><span class="step done"><span class="sn">${ic('check')}</span>作業完了データ</span><span class="ar"></span><span class="step cur"><span class="sn">2</span>請求候補（未確定）</span><span class="ar"></span><span class="step"><span class="sn">3</span>月次締めで確定</span><span class="ar"></span><span class="step"><span class="sn">4</span>請求書生成</span></div>`+
+  invoiceDraftSection()+
+  panel(`${ic('invoice','pic')}請求変換（確定分） <span class="sub">確定済みの請求候補から請求書を生成</span>`,
+    toolbar(sel(['締日：5月末','20日','15日'])+`<button class="btn primary" data-perm="edit">${ic('bolt')}一括生成</button><button class="btn" data-perm="edit">個別生成</button><button class="btn" data-perm="edit">${ic('plus')}手動登録</button>`)+
+    tbl([{t:'請求先'},{t:'対象作業',num:true},{t:'金額(税抜)',num:true},{t:'消費税',num:true},{t:'合計',num:true},{t:'状態'},''],[
+      ['みなとフード本部経理','512','¥2,480,000','¥248,000','<b>¥2,728,000</b>',tag('t-blue','生成待ち'),A('確認')],
+      ['関西モール 管理本部','280','¥1,180,000','¥118,000','<b>¥1,298,000</b>',tag('t-blue','生成待ち'),A('確認')],
+      ['グルメテーブル中部FC','301','¥980,000','¥98,000','<b>¥1,078,000</b>',tag('t-green','生成済'),A('表示')],
+    ],{click:true}));
+}
+
+/* ---- 完了報告 → 請求の2段階（請求候補） ----
+   作業完了で即・請求候補（未確定）に自動計上 → 月次締めで確定。
+   未確定＝編集可、確定＝ロック（取消は要承認）。state は INVOICE_DRAFTS に保持（デモ）。 */
+const INVOICE_DRAFTS = [
+  {id:'D-202605-0411', billto:'みなとフード本部経理', store:'栄町店',      work:'グリストラップ清掃', date:'2026/05/28', amt:24000,  locked:false},
+  {id:'D-202605-0412', billto:'みなとフード本部経理', store:'梅田北口店',  work:'排水管高圧洗浄',     date:'2026/05/26', amt:58000,  locked:false},
+  {id:'D-202605-0413', billto:'関西モール 管理本部',   store:'関西モール 梅田', work:'雑排水槽清掃',  date:'2026/05/25', amt:96000,  locked:false},
+  {id:'D-202605-0414', billto:'中央総合病院グループ',  store:'本院',        work:'スポット清掃',     date:'2026/05/28', amt:185000, locked:false},
+  {id:'D-202604-0388', billto:'グルメテーブル中部FC',  store:'三宮店',      work:'グリストラップ清掃', date:'2026/04/30', amt:24000,  locked:true},
+];
+function invoiceDraftSection(){
+  const open = INVOICE_DRAFTS.filter(d=>!d.locked);
+  const sumOpen = open.reduce((s,d)=>s+d.amt,0);
+  const rows = INVOICE_DRAFTS.map(d=>[
+    `<span class="code">${d.id}</span>`,
+    `<b>${d.billto}</b><div class="subtle" style="font-size:11px">${d.store}</div>`,
+    d.work, d.date,
+    `<span class="num">${yen(d.amt)}</span>`,
+    d.locked ? `${ic('shield')} ${tag('t-gray','確定（ロック）')}` : tag('t-amber','未確定（編集可）'),
+    d.locked ? `<span class="subtle">取消は要承認</span>` : `<span class="lnk" data-perm="edit" onclick="toast('請求候補 ${d.id} を編集（未確定）')">編集</span>`
+  ]);
+  const lockBtn = open.length
+    ? `<button class="btn primary" data-perm="edit" onclick="lockInvoiceDrafts()">${ic('check')}月次締めで確定（${open.length}件）</button>`
+    : `<button class="btn" style="opacity:.5;pointer-events:none">${ic('check')}確定対象なし</button>`;
+  return panel(`${ic('bolt','pic')}請求候補（未確定） <span class="sub">作業完了から自動計上 · 未確定 ${open.length}件 / ${yen(sumOpen)}</span>`,
+    note('作業完了で即・<b>請求候補（未確定）</b>に自動計上 → <b>月次締めで確定</b>。確定後はロック（取消は要承認）。','eco','bolt')+
+    toolbar(`${lockBtn}<span class="spacer"></span><span class="subtle" style="font-size:11.5px;align-self:center">未確定は編集可／確定はロック表示</span>`)+
+    `<div id="invDraftTbl">`+tbl([{t:'候補ID'},{t:'請求先 / 店舗'},{t:'作業'},{t:'計上日'},{t:'金額(税抜)',num:true},{t:'状態'},''],rows,{click:true})+`</div>`);
+}
+// 月次締め：未確定の請求候補をすべて確定（ロック）に切替（デモ）。
+function lockInvoiceDrafts(){
+  const n=INVOICE_DRAFTS.filter(d=>!d.locked).length;
+  if(!n){ toast('確定対象の請求候補がありません'); return; }
+  INVOICE_DRAFTS.forEach(d=>d.locked=true);
+  // 請求候補セクションのみ再描画（現在 請求管理タブ0 表示時）
+  const wrap=document.getElementById('invDraftTbl');
+  if(wrap && wrap.closest('.panel')){
+    wrap.closest('.panel').outerHTML = invoiceDraftSection();
+  }
+  toast(n+'件の請求候補を確定しました（ロック／取消は要承認）');
 }
 
 /* ============================================================

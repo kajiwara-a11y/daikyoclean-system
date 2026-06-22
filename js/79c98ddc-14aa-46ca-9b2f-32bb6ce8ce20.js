@@ -68,14 +68,13 @@ function renderSidebar(){
 /* ---- Page head ---- */
 function renderHead(){
   const [t,lead] = TITLES[state.mod];
-  const catFor = id=>{ // find category label for breadcrumb
-    let cur='メイン';
-    for(const n of NAV){ if(n.type==='cat') cur=n.label; if(n.type==='item'&&n.id===id) return cur; }
-    return cur;
-  };
   const tabs = TABS[state.mod]||[];
+  // パンくず統一：常に「メイン › 〔モジュール名〕（› 〔タブ名〕）」。
+  // タブが複数あり、かつ既定タブ（0）以外を表示中のときだけタブ階層を追記する。
+  const tabName = (tabs.length>1 && state.tab>0 && tabs[state.tab]) ? tabs[state.tab] : '';
   document.getElementById('crumb').innerHTML =
-    `<span>${catFor(state.mod)}</span><span class="sep">›</span><b>${t}</b>`;
+    `<span>メイン</span><span class="sep">›</span>`+
+    (tabName ? `<span>${t}</span><span class="sep">›</span><b>${tabName}</b>` : `<b>${t}</b>`);
   document.getElementById('ptitle').innerHTML =
     `<h1>${t}</h1><span class="lead">${lead}</span>`;
   const tabsEl = document.getElementById('ptabs');
@@ -99,15 +98,35 @@ function renderPage(){
     if(lvl==='R') html = `<div class="note warn">${ic('info')}<div>この画面は <b>${rn}</b> では<b>参照のみ</b>です。編集・登録はできません。</div></div>` + html;
   }
   document.getElementById('page').innerHTML = html;
-  // disable action buttons on read-only preview screens
-  if(state.preview && roleLevel(state.preview,state.mod)==='R'){
-    document.querySelectorAll('#page .btn.primary, #page .btn.eco').forEach(b=>{
-      b.style.opacity='.45'; b.style.pointerEvents='none';
-    });
+  // 権限による導線の出し分け：参照のみ('R')/非表示('N')のロールでプレビュー中は、
+  // 編集系の一次アクションボタンを「無効化」ではなく「非表示」にする（押せても弾かれるUIを避ける）。
+  if(state.preview){
+    const lvl = roleLevel(state.preview, state.mod);
+    if(lvl==='R' || lvl==='N'){
+      hideEditActions(document.getElementById('page'));
+    }
   }
   bindSegmented();
   setTimeout(()=>initCharts(),30);
   document.querySelector('.main').scrollTop=0;
+}
+
+/* ---- 権限による導線の出し分け（ボタンレベル） ----
+   参照のみ/非表示ロールのプレビュー時に、編集・確定・登録・保存・送信などの
+   「書き込み系」一次アクションを DOM から隠す。閲覧系（表示/詳細/PDF/CSV出力/絞り込み 等）は残す。
+   data-perm="edit" を明示付与したボタンは無条件で隠す。 */
+const EDIT_ACTION_RE = /確定|締め|入金登録|消込|登録|新規|追加|作成|保存|編集|修正|更新|承認|差し戻し|一括生成|個別生成|生成|手動登録|再発行|発行|送信|メール|アップロード|取込|インポート|移行|設定を保存|宛先設定|再調整|催促/;
+const KEEP_ACTION_RE = /表示|詳細|確認|照会|PDF|CSV出力|出力|ダウンロード|^DL$|絞り込み|^検索$|閉じる|キャンセル|戻る|履歴/;
+function hideEditActions(root){
+  if(!root) return;
+  root.querySelectorAll('.btn.primary, .btn.eco, .lnk, .chip.add').forEach(b=>{
+    const label=(b.innerText||b.textContent||'').replace(/\s+/g,'');
+    const forceEdit = b.dataset && b.dataset.perm==='edit';
+    if(b.dataset && b.dataset.perm==='read') return;          // 明示的に閲覧系
+    if(forceEdit || (EDIT_ACTION_RE.test(label) && !KEEP_ACTION_RE.test(label))){
+      b.style.display='none';
+    }
+  });
 }
 
 /* ---- Routing ---- */
@@ -124,6 +143,7 @@ function route(id, tab=0){
 function setTab(i){
   state.tab=i;
   document.querySelectorAll('#ptabs .ptab').forEach((el,idx)=>el.classList.toggle('active',idx===i));
+  renderHead();   // パンくずにタブ階層を反映（メイン › モジュール › タブ）
   renderPage();
   try{ localStorage.setItem('dk_route', JSON.stringify({mod:state.mod,tab:i})); }catch(e){}
 }
@@ -166,10 +186,14 @@ function openDrawer(rowEl){
   const code = cells[0]||'';
   let kv='';
   headers.forEach((hd,i)=>{ if(i>1 && cells[i] && hd && cells[i]!=='') kv+=`<dt>${hd}</dt><dd>${cells[i]}</dd>`; });
+  // 三層相互遷移：店舗一覧の行（店舗コード＋管理会社 列を持つ）なら、店舗↔管理会社↔請求先↔取引履歴の直リンクを表示
+  const isStore = headers.includes('店舗コード') && /^S-/.test(code);
+  const crossLinks = isStore ? storeCrossLinks(code) : '';
   document.getElementById('drawerTitle').textContent = title;
   document.getElementById('drawerSub').textContent = code;
   document.getElementById('drawerBody').innerHTML = `
     <dl class="kv">${kv||`<dt>コード</dt><dd>${code}</dd>`}</dl>
+    ${crossLinks}
     <div class="divline"></div>
     <div style="font-weight:700;font-size:13px;margin-bottom:10px">最近のアクティビティ</div>
     <ul class="timeline">
@@ -181,6 +205,27 @@ function openDrawer(rowEl){
     `<button class="btn primary" onclick="openForm('${esc(title)} の編集','edit')">編集する</button>
      <button class="btn" onclick="closeDrawer()">閉じる</button>`;
   showDrawer();
+}
+/* 三層リンクのUI（店舗詳細から 管理会社／請求先／取引履歴 へ1タップ遷移）。
+   store の管理会社コードは STORE_ROWS から逆引き。請求先・取引履歴は該当タブへ。 */
+function relRow(label,sub,onclick){
+  return `<div class="rel-link" onclick="${onclick}">
+    <div><div class="rl-l">${label}</div><div class="rl-s">${sub}</div></div>
+    <span class="rl-go">${ic('link')}開く</span></div>`;
+}
+function storeCrossLinks(code){
+  const s=(typeof STORE_ROWS!=='undefined') ? STORE_ROWS.find(r=>r.code===code) : null;
+  const mgmtCode = s && s.mgmt;
+  const mgmtName = (mgmtCode && typeof MGMT_DETAIL!=='undefined' && MGMT_DETAIL[mgmtCode]) ? MGMT_DETAIL[mgmtCode].name : '—（直接管理）';
+  const cust = s ? s.cust : '—';
+  return `<div class="divline"></div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:8px">${ic('link')} 関連先へ移動 <span class="subtle" style="font-weight:500;font-size:11px">店舗 ⇄ 管理会社 ⇄ 請求先 ⇄ 取引履歴</span></div>
+    <div class="rel-links">
+      ${ mgmtCode ? relRow('管理会社',mgmtName, `closeDrawer();openMgmtDetail('${mgmtCode}')`) : relRow('管理会社',mgmtName,`toast('この店舗は直接管理（管理会社なし）です')`) }
+      ${ relRow('請求先','請求先一覧（宛先・締日）へ', `closeDrawer();route('cust',3)`) }
+      ${ relRow('顧客',cust, `closeDrawer();route('cust',0)`) }
+      ${ relRow('取引履歴','商談・請求・契約・対応の履歴へ', `closeDrawer();route('cust',7)`) }
+    </div>`;
 }
 function openDetail(title,sub){
   document.getElementById('drawerTitle').textContent = title;
@@ -562,7 +607,13 @@ function openMgmtDetail(code){
     <div class="tbl-wrap" style="margin:0"><div class="scroll"><table><thead><tr><th>店舗コード</th><th>店舗名</th><th>顧客</th><th>エリア</th><th>状態</th></tr></thead><tbody>
       ${stores.map(s=>`<tr class="row"><td class="mono">${s.code}</td><td><b>${s.name}</b></td><td>${s.cust}</td><td>${s.area}</td><td><span class="tag ${s.sc}">${s.status}</span></td></tr>`).join('')}
     </tbody></table></div></div>
-    <div style="text-align:center;margin-top:11px"><span class="lnk" onclick="viewMgmtStores('${code}')">店舗一覧でこの管理会社の店舗を見る →</span></div>`;
+    <div style="text-align:center;margin-top:11px"><span class="lnk" onclick="viewMgmtStores('${code}')">店舗一覧でこの管理会社の店舗を見る →</span></div>
+    <div class="divline"></div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:8px">${ic('link')} 関連先へ移動 <span class="subtle" style="font-weight:500;font-size:11px">管理会社 ⇄ 店舗 ⇄ 請求先 ⇄ 取引履歴</span></div>
+    <div class="rel-links">
+      ${relRow('請求先','請求先一覧（宛先・締日）へ',`closeDrawer();route('cust',3)`)}
+      ${relRow('取引履歴','この管理会社配下の取引履歴へ',`closeDrawer();route('cust',7)`)}
+    </div>`;
   document.getElementById('drawerFoot').innerHTML=`<button class="btn" onclick="viewMgmtStores('${code}')">店舗一覧へ</button><button class="btn ghost" onclick="closeDrawer()">閉じる</button>`;
   showDrawer();
 }
@@ -751,13 +802,36 @@ function txnKind(k,el){ txnState.kind=k; el.parentNode.querySelectorAll('.seg').
 function runGlobalSearch(v){ document.getElementById('gsResults').innerHTML = globalSearchResults(v); }
 function quickSearch(v){ const i=document.getElementById('gsInput'); if(i){ i.value=v; runGlobalSearch(v); } }
 
-/* ---- Command palette ---- */
+/* ---- Command palette（⌘K：横断検索ハブ） ----
+   モジュール／タブに加え、顧客・店舗・請求・取引履歴・作業 を横断索引化。
+   各エントリは route(mod,tab) もしくは run（open* など任意アクション式）で該当画面/ドロワーへ直リンク。 */
 function buildCmdIndex(){
   const idx=[];
+  // 画面・タブ
   NAV.forEach(n=>{ if(n.type==='item'){
-    idx.push({mod:n.id,tab:0,name:n.name,cat:'モジュール',icon:n.icon});
-    (TABS[n.id]||[]).forEach((tb,i)=>{ if(i>0) idx.push({mod:n.id,tab:i,name:n.name+' › '+tb,cat:n.name,icon:n.icon}); });
+    idx.push({mod:n.id,tab:0,name:n.name,cat:'画面',icon:n.icon});
+    (TABS[n.id]||[]).forEach((tb,i)=>{ if(i>0) idx.push({mod:n.id,tab:i,name:n.name+' › '+tb,cat:'画面',icon:n.icon}); });
   }});
+  // 顧客（全域検索データ）→ 顧客一覧へ
+  if(typeof SEARCH_CUST!=='undefined') SEARCH_CUST.forEach(c=>{
+    idx.push({run:`route('cust',0)`, name:c.name, sub:c.code+' · '+c.kind, cat:'顧客', icon:'customer'});
+  });
+  // 店舗（共有マスタ）→ 店舗詳細ドロワーは行クリック起点のため、店舗一覧へ遷移
+  if(typeof STORE_ROWS!=='undefined') STORE_ROWS.forEach(s=>{
+    idx.push({run:`route('cust',5)`, name:s.name, sub:s.code+' · '+s.cust+' · '+s.area, cat:'店舗', icon:'store'});
+  });
+  // 請求書（全域検索データ）→ 請求書タブへ
+  if(typeof SEARCH_INV!=='undefined') SEARCH_INV.forEach(v=>{
+    idx.push({run:`route('invoice',1)`, name:v.code, sub:v.to+' · '+v.month+' · '+v.amt, cat:'請求', icon:'invoice'});
+  });
+  // 取引履歴（種別×顧客）→ 取引履歴タブへ
+  if(typeof TXN_HISTORY!=='undefined') TXN_HISTORY.forEach(h=>{
+    idx.push({run:`route('cust',7)`, name:h.cust+'：'+h.title, sub:h.date+' · '+h.kind+(h.amt&&h.amt!=='—'?' · '+h.amt:''), cat:'取引履歴', icon:'clock'});
+  });
+  // 作業・メニュー（作業マスタ）→ 作業マスタへ
+  ['グリストラップ清掃','排水管高圧洗浄','雑排水槽清掃','産業廃棄物 収集運搬','緊急 排水詰まり対応'].forEach(w=>{
+    idx.push({run:`route('master',1)`, name:w, sub:'作業メニュー（作業マスタ）', cat:'作業', icon:'drop'});
+  });
   return idx;
 }
 let CMD_INDEX=[], cmdSel=0, cmdFiltered=[];
@@ -769,7 +843,9 @@ function openCmd(){
 function closeCmd(){ document.getElementById('cmdMask').classList.remove('open'); }
 function filterCmd(q){
   q=q.trim().toLowerCase();
-  cmdFiltered = q ? CMD_INDEX.filter(x=>x.name.toLowerCase().includes(q)) : CMD_INDEX;
+  cmdFiltered = q ? CMD_INDEX.filter(x=>(x.name+' '+(x.sub||'')).toLowerCase().includes(q)) : CMD_INDEX;
+  // 空クエリ時は索引が長いため画面カテゴリのみ表示（横断結果はキーワード入力で展開）
+  if(!q) cmdFiltered = CMD_INDEX.filter(x=>x.cat==='画面');
   cmdSel=0; renderCmd();
 }
 function renderCmd(){
@@ -779,12 +855,17 @@ function renderCmd(){
   cmdFiltered.forEach((x,i)=>{
     if(x.cat!==lastCat){ h+=`<div class="cgrp">${x.cat}</div>`; lastCat=x.cat; }
     h+=`<div class="crow ${i===cmdSel?'sel':''}" data-i="${i}" onmouseenter="cmdSel=${i};hiCmd()" onclick="goCmd(${i})">
-      ${ic(x.icon,'ci2')}<span>${x.name}</span><span class="cm">↵</span></div>`;
+      ${ic(x.icon,'ci2')}<span>${x.name}</span>${x.sub?`<span class="csub">${x.sub}</span>`:''}<span class="cm">↵</span></div>`;
   });
   list.innerHTML=h;
 }
 function hiCmd(){ document.querySelectorAll('#cmdList .crow').forEach((el,i)=>el.classList.toggle('sel',i===cmdSel)); }
-function goCmd(i){ const x=cmdFiltered[i]; if(x) route(x.mod,x.tab); }
+function goCmd(i){
+  const x=cmdFiltered[i]; if(!x) return;
+  closeCmd();
+  if(x.run){ try{ (new Function(x.run))(); }catch(e){} return; }   // open*/route 等の直リンク式を実行
+  route(x.mod,x.tab);
+}
 
 /* ---- Role panel jump (権限制御) ---- */
 function setRolePanel(i){

@@ -4435,6 +4435,25 @@ td b{font-weight:600}
 .timeline .tt{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:1px}
 .timeline .tx{font-size:12.8px}
 
+/* ===== Task cards (対応が必要な項目) ===== */
+.task-list li{transition:background .12s;border-radius:7px}
+.task-list li:hover{background:var(--bg-soft,#f5f8f9)}
+.task-list li:hover .task-go{opacity:1}
+.task-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+.task-chip{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:600;color:var(--ink-2);background:var(--bg-soft,#f1f5f6);border:1px solid var(--line);border-radius:5px;padding:1px 7px}
+.task-chip svg{width:11px;height:11px;opacity:.7}
+.task-go{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--brand);margin-top:7px;opacity:.55;transition:opacity .12s}
+.task-go svg{width:12px;height:12px}
+
+/* ===== Cross-layer relation links (店舗⇄管理会社⇄請求先⇄取引履歴) ===== */
+.rel-links{display:flex;flex-direction:column;gap:7px}
+.rel-link{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;transition:.12s;background:#fff}
+.rel-link:hover{border-color:var(--brand);background:var(--bg-soft,#f5f8f9)}
+.rel-link .rl-l{font-size:12.5px;font-weight:700;color:var(--ink-2)}
+.rel-link .rl-s{font-size:11px;color:var(--muted);margin-top:1px}
+.rel-link .rl-go{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--brand);white-space:nowrap}
+.rel-link .rl-go svg{width:12px;height:12px}
+
 /* ===== Photo grid ===== */
 .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:13px}
 .photo{
@@ -4537,6 +4556,10 @@ td b{font-weight:600}
 .cmd .crow .ci2{width:18px;height:18px;color:var(--muted);flex:none}
 .cmd .crow .cm{margin-left:auto;font-size:11px;color:var(--faint)}
 .cmd .crow.sel,.cmd .crow:hover{background:var(--brand-tint)}
+.cmd .crow .csub{margin-left:auto;font-size:11px;color:var(--faint);padding-right:8px}
+.cmd .crow .csub+.cm{margin-left:0}
+.cmd-hint{display:flex;align-items:center;gap:6px;padding:9px 16px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);background:var(--bg-soft,#f7fafa);line-height:1.5}
+.cmd-hint b{color:var(--ink-2);font-weight:700}
 .cmd .crow.sel .ci2{color:var(--brand)}
 
 /* ===== Notifications dropdown ===== */
@@ -4704,10 +4727,13 @@ td b{font-weight:600}
   <div class="cmd">
     <div class="ci">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
-      <input id="cmdInput" placeholder="画面・機能を検索して移動…" autocomplete="off">
+      <input id="cmdInput" placeholder="顧客・店舗・請求・取引履歴・画面を横断検索…" autocomplete="off">
       <span class="kbd" style="position:static">esc</span>
     </div>
     <div class="clist" id="cmdList"></div>
+    <div class="cmd-hint" id="cmdHint">
+      <span><b>⌘K は横断検索</b>（顧客・店舗・請求・取引履歴・画面）。各タブ内の検索ボックスはそのタブ内の絞り込みです。</span>
+    </div>
   </div>
 </div>
 

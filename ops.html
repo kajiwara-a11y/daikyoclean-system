@@ -5224,6 +5224,7 @@ body{
 .persona .pp svg{width:17px;height:17px}
 .persona .pp.on{background:#fff;color:var(--brand)}
 .persona .pp.on.field{color:var(--eco)}
+.persona-note{max-width:374px;margin:7px auto 0;font-size:10.5px;line-height:1.5;color:#7fa3ac;text-align:center;font-weight:600}
 .stage .hint{color:#7fa6b0;font-size:12.5px;display:flex;align-items:center;gap:7px}
 .stage .hint svg{width:15px;height:15px}
 
@@ -5352,6 +5353,10 @@ body{
 /* ---- karte 取引履歴 link ---- */
 .lnk-go{color:var(--brand);font-size:12px;font-weight:700;cursor:pointer}
 .lnk-go:active{opacity:.6}
+/* ---- 下書き保存して中断 ---- */
+.draft-link{display:inline-flex;align-items:center;gap:6px;margin:14px auto 2px;padding:8px 4px;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;width:100%;justify-content:center}
+.draft-link svg{width:14px;height:14px;flex:none}
+.draft-link:active{opacity:.6}
 
 /* ---- 取引履歴 items ---- */
 .txn-item{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line-2)}
@@ -5387,6 +5392,22 @@ body{
 .arp-v b{font-weight:700}
 .arp-v.locked{color:var(--ink-2);cursor:default}
 
+/* ---- AI日報 対象範囲（バンドル対象の明示） ---- */
+.scope-box{background:var(--brand-tint);border:1px solid #cfe6e9;border-radius:12px;padding:11px 12px;margin:8px 0 2px}
+.scope-line{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--brand-700);font-weight:600}
+.scope-line svg{flex:none;color:var(--brand)}
+.scope-line b{font-weight:800}
+.scope-chk{display:flex;align-items:flex-start;gap:9px;margin-top:10px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.scope-box-mk{width:20px;height:20px;border-radius:6px;border:1.8px solid var(--faint);background:#fff;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px;transition:.12s}
+.scope-box-mk svg{opacity:0;transition:.12s}
+.scope-chk.on .scope-box-mk{background:var(--brand);border-color:var(--brand)}
+.scope-chk.on .scope-box-mk svg{opacity:1}
+.scope-chk-tx{font-size:12px;font-weight:700;color:var(--ink-2);line-height:1.35}
+.scope-chk-tx span{display:block;font-size:10.5px;font-weight:600;color:var(--muted);margin-top:1px}
+.scope-head{display:flex;align-items:center;gap:7px;background:var(--brand-tint);border:1px solid #cfe6e9;border-radius:11px;padding:9px 11px;font-size:11.5px;color:var(--brand-700);font-weight:700;margin-bottom:10px;line-height:1.4}
+.scope-head svg{flex:none;color:var(--brand)}
+.scope-head b{font-weight:800}
+
 /* ---- AI日報 ステータスバッジ（4状態） ---- */
 .arp-status{display:inline-flex;align-items:center;gap:5px;padding:3px 11px;border-radius:20px;font-size:11px;font-weight:800;letter-spacing:.2px}
 .arp-status::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
@@ -5394,6 +5415,21 @@ body{
 .aps-submitted{background:var(--amber-soft);color:#9a6210}
 .aps-approved{background:var(--eco-soft);color:#15784f}
 .aps-returned{background:var(--red-soft);color:#a8352d}
+/* ---- ホーム：差し戻し通知（バナー＋ベル） ---- */
+.ah-bell{position:relative;width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;margin-left:auto;flex:none;cursor:pointer}
+.ah-bell svg{width:17px;height:17px;stroke:#fff}
+.ah-bell + .ah-av{margin-left:9px}
+.ah-bell .bell-n{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:20px;background:var(--red);color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--side)}
+.notif-banner{display:none;align-items:center;gap:10px;background:var(--red-soft);border:1px solid #f3cdc8;border-radius:13px;padding:11px 12px;margin-bottom:11px;cursor:pointer;line-height:1.35}
+.notif-banner.on{display:flex}
+.notif-banner:active{transform:scale(.995)}
+.notif-banner .nb-ic{width:30px;height:30px;border-radius:9px;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.notif-banner .nb-ic svg{width:16px;height:16px}
+.notif-banner .nb-tx{flex:1}
+.notif-banner .nb-tx b{font-size:13px;font-weight:800;color:#a8352d}
+.notif-banner .nb-tx span{display:block;font-size:11px;color:#b25750;font-weight:600;margin-top:1px}
+.notif-banner .chev{color:#c47a73;flex:none}
+.notif-note{font-size:10px;color:var(--faint);font-weight:600;margin:-6px 0 8px;padding-left:2px}
 .rep-link{display:flex;align-items:center;gap:11px;margin:10px 0 4px;padding:12px 13px;border-radius:13px;cursor:pointer;background:#fff;border:1.4px solid #e6ecee}
 .rep-link:active{transform:scale(.99)}
 .rep-link .ri{width:34px;height:34px;border-radius:10px;background:var(--brand-tint);color:var(--brand-700);display:flex;align-items:center;justify-content:center;flex:none}
@@ -5433,6 +5469,21 @@ body{
 .queue-badge{display:none;align-items:center;gap:7px;background:var(--amber-soft);border:1px solid #f0dcb6;color:#8a5e15;border-radius:11px;padding:9px 11px;font-size:11px;font-weight:700;margin-top:11px;line-height:1.4}
 .queue-badge.on{display:flex}
 .queue-badge .qb-n{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:20px;background:var(--amber);color:#fff;font-size:11px;font-weight:800;flex:none}
+/* ---- 現場：同期ステータス（常時表示） ---- */
+.sync-stat{display:flex;align-items:center;gap:10px;background:#fff;border:1.4px solid #e6ecee;border-radius:13px;padding:11px 12px;margin-bottom:11px}
+.sync-stat.has-q{background:var(--amber-soft);border-color:#f0dcb6}
+.sync-stat .ss-dot{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none;background:var(--eco-soft);color:var(--eco)}
+.sync-stat.has-q .ss-dot{background:var(--amber);color:#fff}
+.sync-stat .ss-dot svg{width:16px;height:16px}
+.sync-stat .ss-tx{flex:1;line-height:1.3}
+.sync-stat .ss-tx b{font-size:13px;font-weight:800}
+.sync-stat .ss-tx b .ss-num{color:var(--amber)}
+.sync-stat.has-q .ss-tx b .ss-num{color:#8a5e15}
+.sync-stat .ss-tx span{display:block;font-size:10.5px;color:var(--muted);font-weight:600;margin-top:1px}
+.sync-stat .ss-btn{display:none;flex:none;border:1.6px solid var(--eco);color:#15784f;background:#fff;border-radius:10px;padding:8px 13px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;align-items:center;gap:5px}
+.sync-stat .ss-btn svg{width:13px;height:13px}
+.sync-stat.has-q .ss-btn{display:inline-flex}
+.sync-stat .ss-btn:active{transform:scale(.97)}
 </style>
 </head>
 <body>
@@ -5446,6 +5497,7 @@ body{
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>現場アプリ
     </button>
   </div>
+  <div class="persona-note">デモ用の切替です。実運用はログイン時に役割（営業／現場）で自動振分。兼務者のみ設定で切替可能。</div>
 
   <div class="device">
     <div class="glass">
@@ -5457,9 +5509,19 @@ body{
         <section class="screen" id="s_home" data-state="active">
           <div class="ah"><div class="ah-row">
             <div><div class="ah-t">こんにちは、梶原さん</div><div class="ah-s">本日の訪問 4件 · 大阪エリア</div></div>
+            <div class="ah-bell" id="homeBell" onclick="openReturnedReport()" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
+              <span class="bell-n" id="homeBellN">0</span>
+            </div>
             <div class="ah-av">梶</div>
           </div></div>
           <div class="sc">
+            <div class="notif-banner" id="returnBanner" onclick="openReturnedReport()">
+              <div class="nb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg></div>
+              <div class="nb-tx"><b id="returnBannerT">差し戻し 0件 — タップして修正</b><span>上長から修正依頼が届いています</span></div>
+              <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+            <div class="notif-note" id="returnBannerNote" style="display:none">※ 実運用はプッシュ通知＋既読管理・再送に対応（本デモはアプリ内通知のみ）</div>
             <div class="mkpi">
               <div class="k"><div class="kl">今月 受注</div><div class="kv">¥4.2M</div><div class="kd up">▲ 12%</div></div>
               <div class="k"><div class="kl">訪問 進捗</div><div class="kv">1/4</div><div class="kd">残り3件</div></div>
@@ -5536,6 +5598,7 @@ body{
             <div class="tapbar"><div class="d on"></div><div class="d"></div><div class="d"></div></div>
             <div class="mlabel">店舗をタップ</div>
             <div id="storeList"></div>
+            <div class="draft-link tap" onclick="saveRecDraft()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>下書き保存して中断</div>
           </div>
         </section>
 
@@ -5550,6 +5613,7 @@ body{
             <div class="mnote teal" style="margin-bottom:2px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"></path></svg>店舗：<b id="rec2Store">みなとフード 栄町店</b></div>
             <div class="mlabel">活動の種別をタップ</div>
             <div id="typeList"></div>
+            <div class="draft-link tap" onclick="saveRecDraft()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>下書き保存して中断</div>
           </div>
         </section>
 
@@ -5567,6 +5631,7 @@ body{
             <div class="fin"><label>担当</label><div class="box auto"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"></circle><path d="M5.5 21a7 7 0 0 1 13 0"></path></svg><span class="val">梶原 健司（自動）</span></div></div>
             <div class="fin"><label>三層の紐付け</label><div class="box auto"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"><path d="M3 9l1.5-5h15L21 9M4 9v11h16V9"></path></svg><span class="val">関西施設SV / 本部経理（自動）</span></div></div>
             <div class="fin"><label>次回アクション</label><div class="box tap" id="rec3Date" onclick="openDateSheet()"><span class="val">6/5 見積提出</span></div></div>
+            <div class="draft-link tap" onclick="saveRecDraft()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>下書き保存して中断</div>
           </div>
           <div class="sc-foot"><button class="bigbtn tap" onclick="saveRecord()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>記録して完了</button></div>
@@ -5584,11 +5649,17 @@ body{
               <div class="k"><div class="kl">完了</div><div class="kv">5<span style="font-size:11px;color:var(--muted)">/8</span></div></div>
               <div class="k"><div class="kl">残り</div><div class="kv">3<span style="font-size:11px;color:var(--muted)">件</span></div></div>
             </div>
+            <div class="sync-stat" id="syncStat">
+              <div class="ss-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3"></path><path d="M21 3v5h-5M3 21v-5h5"></path></svg></div>
+              <div class="ss-tx"><b>未同期 <span class="ss-num" id="syncQ">0</span>件 ／ 同期済</b><span id="syncSub">作業報告はすべてサーバへ同期済みです</span></div>
+              <button class="ss-btn" id="syncBtn" onclick="flushReportQueue()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>再送</button>
+            </div>
             <div class="off-toggle">
               <div class="ot-l">オフライン体験（デモ）<span>ONにすると圏外を擬似再現。報告は端末に保存され、OFFで自動同期します。</span></div>
               <div class="ot-sw" id="offSw" onclick="toggleOfflineDemo()"></div>
             </div>
             <div class="queue-badge" id="queueBadge" onclick="flushReportQueue()"><span class="qb-n" id="queueCnt">0</span><span>未送信の作業報告（オンライン復帰で自動送信／タップで今すぐ送信）</span></div>
+            <div class="mnote teal" style="margin-bottom:2px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>同期ルール：同一報告を別端末が更新した場合は<b>後勝ち＋変更履歴を保持</b>（要確認）。実運用はサーバ側で競合を検知します。</div>
             <div class="mlabel">本日の作業 — タップで完了報告</div>
             <div id="jobList"></div>
             <div class="mnote teal"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>作業をタップ → 写真を撮って完了報告。電波が弱くても入力できます。</div>
@@ -5617,6 +5688,7 @@ body{
             </div>
             <div class="fin"><label>結果</label><div class="box ok"><span class="val">完了</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--eco)" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"></path></svg></div></div>
             <div class="fin"><label>備考・異常報告（任意）</label><div class="box tap" id="memoBox" onclick="openMemoSheet()"><span class="ph" id="memoVal">タップして入力</span></div></div>
+            <div class="draft-link tap" onclick="saveFieldDraft()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>下書き保存して中断</div>
           </div>
           <div class="sc-foot"><button class="bigbtn disabled" id="submitBtn" onclick="trySubmit()">
             <span id="submitLabel">必須 2項目 が未入力</span></button></div>
@@ -5767,6 +5839,13 @@ body{
             </div>
             <div class="mlabel"><span id="actRangeLbl">本日</span> 記録した活動（<span id="actCnt">3</span>件）</div>
             <div id="actList"></div>
+            <div class="scope-box">
+              <div class="scope-line"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>対象：<b id="prepScope">本日（5/29）・梶原の記録 3件</b></div>
+              <label class="scope-chk tap" id="pastChk" onclick="togglePast(event)">
+                <span class="scope-box-mk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></span>
+                <span class="scope-chk-tx">前日までの未提出分も含める<span>（漏記補回：提出し忘れた過去の記録をまとめて反映）</span></span>
+              </label>
+            </div>
             <div class="fin"><label>ひとことメモ（任意・AIが反映）</label><div class="box tap" id="aiMemoBox" onclick="openAiMemo()"><span class="ph" id="aiMemo">タップして追記</span></div></div>
           </div>
           <div class="sc-foot"><button class="bigbtn tap" onclick="genAiReport()">

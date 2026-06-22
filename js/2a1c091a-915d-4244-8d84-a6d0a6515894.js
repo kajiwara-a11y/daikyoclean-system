@@ -71,11 +71,19 @@ function scr_dashboard(){
       ])}
       ${note('表示は主要4班（計23件）。ほか予備・点検班を含め本日 計34件。','','truck')}
     </div></div>
-    <div class="panel"><div class="ph">${ic('warn','pic')}対応が必要な項目</div><div class="pb"><ul class="timeline">
-      <li class="amber" style="cursor:pointer" onclick="route('contract',2)"><div class="tt">契約 · 残30日</div><div class="tx">みなとフードHD 清掃委託契約の更新交渉</div></li>
-      <li class="amber" style="cursor:pointer" onclick="route('ops',1)"><div class="tt">異常報告 · 栄町店</div><div class="tx">グリストラップ油脂過多 — 追加洗浄の提案</div></li>
-      <li style="cursor:pointer" onclick="route('sales',1)"><div class="tt">見積 · 期限本日</div><div class="tx">関西モール管理 排水管洗浄 見積提出</div></li>
-      <li class="eco" style="cursor:pointer" onclick="route('integ',0)"><div class="tt">連携 · 警告</div><div class="tx">弥生販売 売上データ 3件の差異確認</div></li>
+    <div class="panel"><div class="ph">${ic('warn','pic')}対応が必要な項目 <span class="sub">担当・期限・状態つき / クリックで直リンク</span></div><div class="pb"><ul class="timeline task-list">
+      ${taskCard('amber','契約 · 残30日','みなとフードHD 清掃委託契約の更新交渉',
+        {担当:'梶原',期限:'6/30',状態:['t-amber','要交渉']},
+        `openDetail('みなとフードHD 清掃委託契約','残30日 · 更新交渉')`)}
+      ${taskCard('amber','異常報告 · 栄町店','グリストラップ油脂過多 — 追加洗浄の提案',
+        {担当:'山田',期限:'本日',状態:['t-red','未対応']},
+        `openAnomalyDetail('栄町店')`)}
+      ${taskCard('','見積 · 期限本日','関西モール管理 排水管洗浄 見積提出',
+        {担当:'鈴木',期限:'本日',状態:['t-amber','提出期限']},
+        `openQuoteDetail('関西モール管理')`)}
+      ${taskCard('eco','連携 · 警告','弥生販売 売上データ 3件の差異確認',
+        {担当:'佐藤',期限:'随時',状態:['t-blue','警告3件']},
+        `route('integ',0)`)}
     </ul></div></div>
   </div>
   <div class="grid2">
@@ -83,12 +91,77 @@ function scr_dashboard(){
     ${panel(`${ic('pin','pic')}エリア別売上`,`<canvas id="d4" height="170"></canvas>`)}
   </div>`;
 }
+/* 対応が必要な項目：実タスク化（担当・期限・状態チップ ＋ 該当レコードへの直リンク）。
+   meta は {担当,期限,状態:[cls,label]}。onclickは具体レコードを開く式（文字列）。 */
+function taskCard(cls,tt,tx,meta,onclick){
+  const chips = `<span class="task-chips">`+
+    `<span class="task-chip">${ic('user')}${meta.担当}</span>`+
+    `<span class="task-chip">${ic('clock')}期限 ${meta.期限}</span>`+
+    `<span class="tag ${meta.状態[0]} nodot">${meta.状態[1]}</span>`+
+  `</span>`;
+  return `<li class="${cls}" style="cursor:pointer" onclick="${onclick}">
+    <div class="tt">${tt}</div>
+    <div class="tx">${tx}</div>
+    ${chips}
+    <div class="task-go">${ic('link')}該当レコードを開く</div>
+  </li>`;
+}
+/* 異常報告の詳細ドロワー（ダッシュボードの直リンク先）。ops画面の異常履歴の該当1件を開く。 */
+function openAnomalyDetail(store){
+  document.getElementById('drawerTitle').textContent = store+' 異常報告';
+  document.getElementById('drawerSub').textContent = 'OP-77120 · グリストラップ清掃（夜間班）';
+  document.getElementById('drawerBody').innerHTML = `
+    ${note('異常報告は担当営業・管理者へ自動通知済みです。','warn','warn')}
+    <dl class="kv">
+      <dt>状態</dt><dd><span class="tag t-red">未対応（要追加洗浄）</span></dd>
+      <dt>発生日</dt><dd>2026/05/28</dd>
+      <dt>店舗</dt><dd>${store}（S-204411）</dd>
+      <dt>担当</dt><dd>山田 太郎（現場） / 梶原 健司（営業）</dd>
+      <dt>内容</dt><dd>グリストラップ槽内に油脂の堆積が想定より多い。次回は洗浄頻度を月2回へ見直し推奨。</dd>
+    </dl>
+    <div class="divline"></div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:10px">対応の経過</div>
+    <ul class="timeline">
+      <li class="amber"><div class="tt">2026/05/28 14:18</div><div class="tx">現場から異常報告を受領（写真12枚）</div></li>
+      <li><div class="tt">2026/05/28 15:30</div><div class="tx">営業へ自動通知 → 追加洗浄を提案中</div></li>
+    </ul>`;
+  document.getElementById('drawerFoot').innerHTML =
+    `<button class="btn primary" onclick="route('ops',1);closeDrawer()">${ic('ops')}作業実行・報告で開く</button>
+     <button class="btn" onclick="openForm('追加洗浄の見積作成','new')">追加洗浄を提案</button>
+     <button class="btn ghost" onclick="closeDrawer()">閉じる</button>`;
+  showDrawer();
+}
+/* 見積の詳細ドロワー（ダッシュボードの直リンク先）。営業活動 見積管理の該当1件を開く。 */
+function openQuoteDetail(cust){
+  document.getElementById('drawerTitle').textContent = cust+' 見積';
+  document.getElementById('drawerSub').textContent = 'Q-2026-0312 · 梅田モール 排水管洗浄';
+  document.getElementById('drawerBody').innerHTML = `
+    ${note('本日が提出期限です。提出後に先方の役員提示へ進みます。','warn','warn')}
+    <dl class="kv">
+      <dt>状態</dt><dd><span class="tag t-amber">提出期限 本日</span></dd>
+      <dt>金額</dt><dd><span class="num">¥620,000</span>（税抜）</dd>
+      <dt>版</dt><dd>v2</dd>
+      <dt>担当</dt><dd>鈴木 一郎</dd>
+      <dt>件名</dt><dd>梅田モール 排水管洗浄（年間契約の提案を含む）</dd>
+    </dl>
+    <div class="divline"></div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:10px">経過</div>
+    <ul class="timeline">
+      <li><div class="tt">2026/05/27</div><div class="tx">商談：年間契約を提案（役員提示へ）</div></li>
+      <li class="amber"><div class="tt">2026/06/03</div><div class="tx">見積 v2 を提出予定（本日期限）</div></li>
+    </ul>`;
+  document.getElementById('drawerFoot').innerHTML =
+    `<button class="btn primary" onclick="route('sales',1);closeDrawer()">${ic('sales')}見積管理で開く</button>
+     <button class="btn" onclick="openDoc('見積書 Q-2026-0312 プレビュー')">${ic('file')}見積書プレビュー</button>
+     <button class="btn ghost" onclick="closeDrawer()">閉じる</button>`;
+  showDrawer();
+}
 
 /* ============================================================
    顧客・店舗
    ============================================================ */
 function scr_cust(t){
-  if(t!==5) custStoreMgmt=''; // 店舗一覧以外へ移ったら管理会社フィルタを解除
+  if(t!==5){ custStoreMgmt=''; storeStatus='すべて'; storeArea='すべて'; } // 店舗一覧以外へ移ったら絞り込みを解除
   if(t===1) return scr_cust_new();
   if(t===2) return `<div class="grid2">
     ${panel(`${ic('customer','pic')}顧客分類`, tbl([{t:'分類コード'},{t:'分類名'},{t:'顧客数',num:true},''],[
@@ -169,11 +242,11 @@ function scr_cust_billto(){
   return note('請求書の<b>発行対象は各店舗</b>。一方で<b>入金は本社（親会社）単位</b>で管理します。宛先は <b>①各店舗宛 ②本社宛 ③指定代表店舗宛</b> の3パターンに対応します。','eco','invoice')+
   `<div class="flow"><span class="step done"><span class="sn">${ic('store')}</span>発行：店舗単位</span><span class="ar"></span><span class="step cur"><span class="sn">3</span>宛先：3パターン選択</span><span class="ar"></span><span class="step done"><span class="sn">${ic('revenue')}</span>入金：本社で集約</span></div>`+
   toolbar(searchBox('請求先・顧客で検索…')+`<span class="spacer"></span>`+btnNew('請求先登録'))+
-  tbl([{t:'請求先コード'},{t:'請求先名'},{t:'紐付け店舗',num:true},{t:'宛先パターン'},{t:'入金管理'},{t:'締日'},{t:'電子請求'},{t:'宛先設定'},''],[
-    ['<span class="code">B-5001</span>','<b>みなとフード 本部経理</b>','312',tag('t-blue','本社宛'),tag('t-teal','本社一括'),`<span class="lnk" onclick="openBillToForm('B-5001')">末日 ▾</span>`,tag('t-green','有効'),`<span class="lnk" onclick="openBillToForm('B-5001')">宛先設定</span>`,A('変更履歴')],
-    ['<span class="code">B-5002</span>','<b>関西モール 管理本部</b>','118',tag('t-amber','各店舗宛'),tag('t-teal','本社一括'),`<span class="lnk" onclick="openBillToForm('B-5002')">20日 ▾</span>`,tag('t-green','有効'),`<span class="lnk" onclick="openBillToForm('B-5002')">宛先設定</span>`,A('変更履歴')],
-    ['<span class="code">B-5010</span>','<b>グルメテーブル中部FC</b>','167',tag('t-green','代表店舗宛'),tag('t-teal','本社一括'),`<span class="lnk" onclick="openBillToForm('B-5010')">15日 ▾</span>`,tag('t-gray','紙'),`<span class="lnk" onclick="openBillToForm('B-5010')">宛先設定</span>`,A('変更履歴')],
-    ['<span class="code">B-5021</span>','<b>中央総合病院グループ</b>','9',tag('t-blue','本社宛'),tag('t-teal','本社一括'),`<span class="lnk" onclick="openBillToForm('B-5021')">末日 ▾</span>`,tag('t-green','有効'),`<span class="lnk" onclick="openBillToForm('B-5021')">宛先設定</span>`,A('変更履歴')],
+  tbl([{t:'請求先コード'},{t:'請求先名'},{t:'紐付け店舗',num:true},{t:'宛先パターン'},{t:'入金管理'},{t:'締日'},{t:'電子請求'},{t:'宛先設定'},{t:'関連'}],[
+    ['<span class="code">B-5001</span>','<b>みなとフード 本部経理</b>',`<span class="lnk" onclick="route('cust',5)">312</span>`,tag('t-blue','本社宛'),tag('t-teal','本社一括'),`<span class="lnk" onclick="openBillToForm('B-5001')">末日 ▾</span>`,tag('t-green','有効'),`<span class="lnk" onclick="openBillToForm('B-5001')">宛先設定</span>`,`<span class="lnk" onclick="route('cust',5)">紐付く店舗</span> ${A('変更履歴')}`],
+    ['<span class="code">B-5002</span>','<b>関西モール 管理本部</b>',`<span class="lnk" onclick="route('cust',5)">118</span>`,tag('t-amber','各店舗宛'),tag('t-teal','本社一括'),`<span class="lnk" onclick="openBillToForm('B-5002')">20日 ▾</span>`,tag('t-green','有効'),`<span class="lnk" onclick="openBillToForm('B-5002')">宛先設定</span>`,`<span class="lnk" onclick="route('cust',5)">紐付く店舗</span> ${A('変更履歴')}`],
+    ['<span class="code">B-5010</span>','<b>グルメテーブル中部FC</b>',`<span class="lnk" onclick="route('cust',5)">167</span>`,tag('t-green','代表店舗宛'),tag('t-teal','本社一括'),`<span class="lnk" onclick="openBillToForm('B-5010')">15日 ▾</span>`,tag('t-gray','紙'),`<span class="lnk" onclick="openBillToForm('B-5010')">宛先設定</span>`,`<span class="lnk" onclick="route('cust',5)">紐付く店舗</span> ${A('変更履歴')}`],
+    ['<span class="code">B-5021</span>','<b>中央総合病院グループ</b>',`<span class="lnk" onclick="route('cust',5)">9</span>`,tag('t-blue','本社宛'),tag('t-teal','本社一括'),`<span class="lnk" onclick="openBillToForm('B-5021')">末日 ▾</span>`,tag('t-green','有効'),`<span class="lnk" onclick="openBillToForm('B-5021')">宛先設定</span>`,`<span class="lnk" onclick="route('cust',5)">紐付く店舗</span> ${A('変更履歴')}`],
   ],{click:true})+
   `<div class="grid2">
     ${panel(`${ic('mail','pic')}宛先パターンの説明`,`<ul class="histo">
@@ -212,18 +285,49 @@ function scr_cust_mgmt(){
     ['<span class="code">M-303</span>','<b>京浜メンテナンス</b>','神奈川・東京','620','2025/01〜','<span class="lnk" onclick="openMgmtDetail(\'M-303\')">詳細</span> <span class="lnk">履歴</span>'],
   ])+note('管理会社の行の「詳細」で所属店舗を確認できます。切替（店舗移管）は履歴として追跡し、有効期間で世代管理します。');
 }
+/* 店舗一覧の絞り込み（管理会社／状態／エリア）。選択で即フィルタ。custStoreMgmtは管理会社詳細からも設定される */
+var storeStatus='すべて', storeArea='すべて';
+function storeAreaMatch(area,region){
+  if(region==='関西') return /大阪|神戸|京都|兵庫|奈良|滋賀|和歌山/.test(area);
+  if(region==='関東') return /東京|さいたま|埼玉|千葉|横浜|川崎|神奈川/.test(area);
+  if(region==='中部') return /愛知|名古屋|岐阜|静岡|三重|春日井/.test(area);
+  return true;
+}
+function setStoreFilter(kind,val){
+  if(kind==='mgmt'){
+    if(val.indexOf('すべて')>=0) custStoreMgmt='';
+    else if(val.indexOf('直接管理')>=0) custStoreMgmt='__none__';
+    else { const m=Object.keys(MGMT_DETAIL).find(k=>MGMT_DETAIL[k].name===val); custStoreMgmt=m||''; }
+  } else if(kind==='status'){ storeStatus = val.indexOf('すべて')>=0?'すべて':val; }
+  else if(kind==='area'){ storeArea = val.indexOf('すべて')>=0?'すべて':val; }
+  route('cust',5);
+}
+function storeSel(kind,opts,cur){
+  return `<select class="search" onchange="setStoreFilter('${kind}',this.value)">${opts.map(o=>`<option${o===cur?' selected':''}>${o}</option>`).join('')}</select>`;
+}
 function scr_cust_store(){
   const mc=custStoreMgmt, meta=MGMT_DETAIL[mc]||{};
-  const rows=STORE_ROWS.filter(s=>!mc||s.mgmt===mc);
+  const rows=STORE_ROWS.filter(s=>{
+    const mgmtOk = !mc ? true : (mc==='__none__' ? s.mgmt==='' : s.mgmt===mc);
+    const statusOk = storeStatus==='すべて' || s.status===storeStatus;
+    const areaOk = storeArea==='すべて' || storeAreaMatch(s.area, storeArea);
+    return mgmtOk && statusOk && areaOk;
+  });
+  const mgmtCur = !mc ? '管理会社：すべて' : (mc==='__none__' ? '—（直接管理）' : (meta.name||'管理会社：すべて'));
+  const statusCur = storeStatus==='すべて' ? '状態：すべて' : storeStatus;
+  const areaCur = storeArea==='すべて' ? 'エリア：すべて' : storeArea;
+  const bName = mc==='__none__' ? '直接管理（管理会社なし）' : (meta.name||'');
+  const bCount = mc==='__none__' ? rows.length+'件' : (meta.count?meta.count.toLocaleString()+'店舗中 '+rows.length+'件':rows.length+'件');
   return kpi([
     {l:'全店舗',v:'3,742',icon:'store'},{l:'今月 新規',v:'14',d:'',dir:'up',icon:'plus',accent:'eco'},
     {l:'今月 閉店',v:'6',dir:'down',icon:'store',accent:'amber'},{l:'移管手続中',v:'21',icon:'refresh'},
   ])+
-  (mc?note(`管理会社「<b>${meta.name}</b>」が管理する店舗で絞り込み中（${meta.count?meta.count.toLocaleString():rows.length}店舗中 ${rows.length}件を表示）　<span class="lnk" onclick="custStoreMgmt='';route('cust',5)">絞り込み解除</span>`,'amber','filter'):'')+
-  toolbar(searchBox('店舗名・コードで検索…')+sel(['状態：すべて','営業中','閉店','開店準備中','移管手続中'])+sel(['エリア：すべて','関西','関東','中部'])+sel(['管理会社：すべて','関西施設サービス','東日本ビル管理','京浜メンテナンス','—（直接管理）'])+`<span class="spacer"></span><button class="btn" onclick="openCsvImport()">${ic('upload')}CSVインポート</button>`+btnCsv+btnNew('店舗登録'))+
+  (mc?note(`管理会社「<b>${bName}</b>」の店舗で絞り込み中（${bCount}を表示）　<span class="lnk" onclick="custStoreMgmt='';route('cust',5)">絞り込み解除</span>`,'amber','filter'):'')+
+  toolbar(searchBox('店舗名・コードで検索…')+storeSel('status',['状態：すべて','営業中','閉店','開店準備中','移管手続中'],statusCur)+storeSel('area',['エリア：すべて','関西','関東','中部'],areaCur)+storeSel('mgmt',['管理会社：すべて','関西施設サービス','東日本ビル管理','京浜メンテナンス','—（直接管理）'],mgmtCur)+`<span class="spacer"></span><button class="btn" onclick="openCsvImport()">${ic('upload')}CSVインポート</button>`+btnCsv+btnNew('店舗登録'))+
   tbl([{t:'店舗コード'},{t:'店舗名'},{t:'顧客'},{t:'管理会社'},{t:'エリア'},{t:'作業頻度'},{t:'状態'}],
     rows.map(s=>['<span class="code">'+s.code+'</span>','<b>'+s.name+'</b>',s.cust,(MGMT_DETAIL[s.mgmt]||{}).name||'—（直接管理）',s.area,tag(s.fc,s.freq),tag(s.sc,s.status)]),
-  {click:true});
+  {click:true})+
+  (rows.length===0?note('該当する店舗がありません。絞り込み条件を見直してください。','','info'):'');
 }
 
 /* ---- 取引履歴（顧客ごと・全種別 + 検索） ---- */

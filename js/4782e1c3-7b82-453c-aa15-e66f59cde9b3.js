@@ -97,9 +97,35 @@ function setPersona(p){
   document.getElementById('ppSales').classList.toggle('on',p==='sales');
   document.getElementById('ppField').classList.toggle('on',p==='field');
   document.getElementById('devClock').textContent = p==='sales' ? '9:41' : '22:48';
-  if(p==='sales'){ root('s_home'); }
+  if(p==='sales'){ renderHomeNotif(); root('s_home'); }
   else { resetReport(); renderNetStatus(); root('f_home'); }
   closeSheet(); closeGen();
+}
+
+/* ============ #3 差し戻し/承認のアプリ内通知（営業ホーム） ============ */
+/* 差し戻し件数は MDATA.dailyReports の status==='returned' から導出 */
+function returnedReports(){ return (MDATA.dailyReports||[]).map((r,i)=>({r,i})).filter(o=>o.r.status==='returned'); }
+function returnedCount(){ return returnedReports().length; }
+/* 営業ホームの通知バナー・ヘッダーベル（バッジ）を件数に同期 */
+function renderHomeNotif(){
+  const n=returnedCount();
+  const banner=document.getElementById('returnBanner');
+  const bt=document.getElementById('returnBannerT');
+  const note=document.getElementById('returnBannerNote');
+  const bell=document.getElementById('homeBell');
+  const bn=document.getElementById('homeBellN');
+  if(bt) bt.textContent='差し戻し '+n+'件 — タップして修正';
+  if(banner) banner.classList.toggle('on',n>0);
+  if(note) note.style.display = n>0 ? 'block' : 'none';
+  if(bn) bn.textContent=n;
+  if(bell) bell.style.display = n>0 ? 'flex' : 'none';
+}
+/* 通知 → 最初の差し戻し日報の詳細（→ 修正して再提出フロー）へワンタップ遷移 */
+function openReturnedReport(){
+  const list=returnedReports();
+  if(!list.length){ toast('差し戻しはありません'); return; }
+  root('s_home');                 // どの画面からでも確実に営業ホーム基点へ
+  openAiRepView(list[0].i);
 }
 
 /* ============ 営業フロー ============ */
@@ -154,7 +180,21 @@ function histKind(k,el){ histState.kind=k; el.parentNode.querySelectorAll('.segm
 /* ---- AI日報 作成フロー ---- */
 let aiMemo='';
 var aiRange='today';
+var aiIncludePast=false;          // #2 前日までの未提出分も含める（漏記補回）
 var aiReport={status:'draft'};
+/* #2 バンドル対象（件数・日付範囲）を計算。
+   ベース件数は現在の aiRange の活動リスト件数。
+   未提出分を含める ON のときはデモとして +2件・日付範囲を前日まで拡張。 */
+function aiScope(){
+  const cfg=AI_RANGE[aiRange]||AI_RANGE.today;
+  const base=(MDATA[cfg.src]||[]).length;
+  const past=aiIncludePast?2:0;
+  // 本日基準は 5/29。未提出分を含めると 5/28〜5/29 に拡張（今日範囲のときのみ日付を併記）
+  const date = aiRange==='today'
+    ? (aiIncludePast?'5/28〜5/29':'本日（5/29）')
+    : cfg.lbl + (aiIncludePast?'＋前日までの未提出分':'');
+  return { count:base+past, date:date, label:cfg.lbl };
+}
 const AI_RANGE={
   today:{ src:'aiActivities',      lbl:'本日',
     summary:'本日は大阪エリアを中心に4件訪問。新規見積案件を1件獲得し、契約更新も最終段階に。',
@@ -175,6 +215,21 @@ function renderAiActs(){
       <div class="act-b"><div class="act-n">${a.name}</div><div class="act-m">${a.memo}</div></div></div>`).join('');
   const cnt=document.getElementById('actCnt'); if(cnt) cnt.textContent = acts.length;
   const lbl=document.getElementById('actRangeLbl'); if(lbl) lbl.textContent = cfg.lbl;
+  renderPrepScope();
+}
+/* #2 s_aiprep の「対象」行を更新（営業が生成前に確認できるよう件数・日付を明示） */
+function renderPrepScope(){
+  const sc=aiScope();
+  const el=document.getElementById('prepScope');
+  if(el) el.textContent = `${sc.date}・梶原の記録 ${sc.count}件`;
+}
+/* #2 「前日までの未提出分も含める」トグル */
+function togglePast(ev){
+  if(ev) ev.preventDefault();
+  aiIncludePast=!aiIncludePast;
+  const c=document.getElementById('pastChk'); if(c) c.classList.toggle('on',aiIncludePast);
+  renderPrepScope();
+  toast(aiIncludePast?'前日までの未提出分を対象に含めます（漏記補回）':'本日分のみを対象にします');
 }
 function setAiRange(r,el){
   aiRange=r;
@@ -183,8 +238,9 @@ function setAiRange(r,el){
 }
 function openAiPrep(){
   aiMemo='';
-  aiRange='today'; aiReport.status='draft';
+  aiRange='today'; aiReport.status='draft'; aiIncludePast=false;
   document.querySelectorAll('#aiRanges .segm').forEach((x,i)=>x.classList.toggle('on',i===0));
+  const c=document.getElementById('pastChk'); if(c) c.classList.remove('on');
   renderAiActs();
   const m=document.getElementById('aiMemo'); m.className='ph'; m.textContent='タップして追記';
   go('s_aiprep');
@@ -201,7 +257,9 @@ function genAiReport(){
   const cfg=AI_RANGE[aiRange]||AI_RANGE.today;
   toast('AIが日報を生成しました');
   const memo = aiMemo && aiMemo!=='特になし' ? `${aiMemo}。栄町店のトラブル履歴を提示でき、頻度見直しの提案がスムーズだった。` : '栄町店のトラブル履歴を提示でき、頻度見直しの提案がスムーズだった。';
+  const sc=aiScope();
   document.getElementById('aiReportBody').innerHTML = `
+    <div class="scope-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>対象：<b>${sc.date}・梶原の記録 ${sc.count}件</b>${aiIncludePast?' <b>（前日までの未提出分を含む）</b>':''}</div>
     <div class="ai-doc">
       <div class="arp-row"><div class="arp-l">サマリ</div><div class="arp-v" onclick="editArp(this)">${cfg.summary}</div></div>
       <div class="arp-row"><div class="arp-l">訪問詳細</div><div class="arp-v" onclick="editArp(this)">${cfg.detail}</div></div>
@@ -245,8 +303,8 @@ function sendAiReport(){
   const re=aiReport.status==='returned';
   // 初回提出（下書き → 提出）のみ、現在のプレビュー内容から日報一覧に1件追加する。
   // 差し戻しの再提出は既存の一覧項目を編集する流れのため、ここでは追加しない。
+  var vs=[...document.querySelectorAll('#aiReportBody .arp-v')].map(e=>e.innerHTML);
   if(!re){
-    var vs=[...document.querySelectorAll('#aiReportBody .arp-v')].map(e=>e.innerHTML);
     var entry={ date:'2026/05/29（金）', range:(AI_RANGE[aiRange]||{}).lbl||'本日', status:'submitted',
       summary:vs[0], detail:vs[1], next:vs[2], impression:vs[3] };
     MDATA.dailyReports = MDATA.dailyReports || [];
@@ -255,10 +313,16 @@ function sendAiReport(){
     // 先頭が「本日（提出済）」ならそれを置き換える。
     if(top && top.date===entry.date && top.status==='submitted'){ MDATA.dailyReports[0]=entry; }
     else { MDATA.dailyReports.unshift(entry); }
+  } else {
+    // 差し戻しの再提出：対象の一覧項目を更新し、差し戻し→提出済へ（ホーム通知が減る）
+    var t=(MDATA.dailyReports||[])[aiRepView];
+    if(t){ t.status='submitted'; delete t.returnNote;
+      if(vs.length){ t.summary=vs[0]; t.detail=vs[1]; t.next=vs[2]; t.impression=vs[3]; } }
   }
   aiReport.status='submitted';
   renderAiReportStatus();
   renderAiDone();
+  renderHomeNotif();
   toast(re?'修正版を再提出しました':'日報を提出しました');
   go('s_aidone');
 }
@@ -284,8 +348,21 @@ function renderAiDone(){
     : '<button class="bigbtn tap" onclick="root(\'s_home\')">ホームへ戻る</button>';
 }
 /* 上長（管理画面）デモ操作 */
-function supApprove(){ aiReport.status='approved'; renderAiReportStatus(); renderAiDone(); toast('上長が日報を承認しました'); }
-function supReturn(){ aiReport.status='returned'; renderAiReportStatus(); renderAiDone(); toast('上長が日報を差し戻しました','warn'); }
+function supApprove(){
+  aiReport.status='approved';
+  // 提出済みの当日分（先頭）も承認状態へ反映 → ホームの差し戻し件数が正しく減る
+  var dr=MDATA.dailyReports||[]; if(dr[0]&&dr[0].status==='submitted') dr[0].status='approved';
+  renderAiReportStatus(); renderAiDone(); renderHomeNotif();
+  toast('上長が日報を承認しました（アプリ内通知）');
+}
+function supReturn(){
+  aiReport.status='returned';
+  // 提出済みの当日分（先頭）を差し戻し状態へ反映 → ホームに差し戻し通知が出る
+  var dr=MDATA.dailyReports||[];
+  if(dr[0]&&dr[0].status==='submitted'){ dr[0].status='returned'; if(!dr[0].returnNote) dr[0].returnNote='内容を具体化のうえ再提出してください。'; }
+  renderAiReportStatus(); renderAiDone(); renderHomeNotif();
+  toast('上長が日報を差し戻しました','warn');
+}
 /* 差し戻し → プレビューに戻って再編集 */
 function reopenAiReport(){ back(); renderAiReportStatus(); toast('差し戻し：内容を修正して再提出してください'); }
 
@@ -361,6 +438,13 @@ function saveRecord(){
   root('s_home');
   toast('活動を記録しました（'+rec.type+'）');
 }
+/* #6 記録（s_rec1〜3）の途中中断：下書きを保存してホームへ。
+   デモは localStorage にスタブ保存。実運用はサーバ同期の下書き保存に置き換え。 */
+function saveRecDraft(){
+  try{ localStorage.setItem('dk_rec_draft', JSON.stringify({ store:rec.store, type:rec.type, at:new Date().toISOString() })); }catch(e){}
+  toast('下書きを保存しました');
+  root('s_home');
+}
 
 /* ============ オフライン作業報告キュー（PWA） ============ */
 const RQ_KEY='dk_report_queue';
@@ -383,6 +467,15 @@ function renderNetStatus(){
   const cnt=document.getElementById('queueCnt');
   if(cnt) cnt.textContent=q.length;
   if(badge) badge.classList.toggle('on',q.length>0);
+  // #8 常時表示の同期ステータス（未同期 ◯件 ／ 同期済）＋ ◯>0 のとき再送ボタン
+  const stat=document.getElementById('syncStat');
+  const sq=document.getElementById('syncQ');
+  const ssub=document.getElementById('syncSub');
+  if(sq) sq.textContent=q.length;
+  if(stat) stat.classList.toggle('has-q',q.length>0);
+  if(ssub) ssub.textContent = q.length>0
+    ? (off?'オフライン中。オンライン復帰または「再送」で送信します':'未同期の報告があります。「再送」で今すぐ送信できます')
+    : '作業報告はすべてサーバへ同期済みです';
 }
 /* キューに作業報告を積む */
 function queueReport(){
@@ -499,6 +592,13 @@ function trySubmit(){
   go('f_done');
 }
 function nextJob(){ root('f_home'); toast('次の作業を選んでください'); }
+/* #6 現場報告（f_report）の途中中断：下書きを保存して作業一覧へ。
+   デモは localStorage にスタブ保存。実運用はサーバ同期の下書き保存に置き換え。 */
+function saveFieldDraft(){
+  try{ localStorage.setItem('dk_field_draft', JSON.stringify({ name:report.name, work:report.work, op:report.op, after:report.after, sludge:report.sludge, at:new Date().toISOString() })); }catch(e){}
+  toast('下書きを保存しました');
+  root('f_home');
+}
 function genJwnet(){
   const r=()=>String(Math.floor(1000+Math.random()*9000));
   return MDATA.jwnetPrefix+'-'+r()+'-'+r()+'-'+r();
@@ -555,3 +655,4 @@ renderLists();
 renderTabs();
 updateSubmit();
 renderNetStatus();
+renderHomeNotif();
