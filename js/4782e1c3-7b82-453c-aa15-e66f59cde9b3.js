@@ -276,6 +276,59 @@ function supReturn(){ aiReport.status='returned'; renderAiReportStatus(); render
 /* 差し戻し → プレビューに戻って再編集 */
 function reopenAiReport(){ renderAiReportStatus(); go('s_aireport'); toast('差し戻し：内容を修正して再提出してください'); }
 
+/* ---- AI日報：提出済み日報の閲覧（一覧 / 詳細） ---- */
+var aiRepFilter='すべて';
+var aiRepView=0;
+function statusBadgeHtml(st){ const s=AI_STATUS[st]||AI_STATUS.draft; return `<span class="arp-status ${s.cls}">${s.lbl}</span>`; }
+function renderAiReports(){
+  const all=MDATA.dailyReports||[];
+  const items=all.map((r,i)=>({r,i})).filter(o=> aiRepFilter==='すべて' || (AI_STATUS[o.r.status]||{}).lbl===aiRepFilter);
+  const el=document.getElementById('aiRepList'); if(!el) return;
+  el.innerHTML = items.length ? items.map(o=>
+    `<div class="rep-card tap" onclick="openAiRepView(${o.i})">
+       <div class="rep-top"><span class="rep-date">${o.r.date}</span>${statusBadgeHtml(o.r.status)}</div>
+       <div class="rep-sum">${o.r.summary}</div>
+       <div class="rep-meta"><span class="rep-rng">${o.r.range}</span>${o.r.status==='returned'?'<span class="rep-flag">要修正</span>':''}<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"></path></svg></div>
+     </div>`).join('')
+    : '<div class="mempty">該当する日報がありません</div>';
+}
+function openAiReports(){ aiRepFilter='すべて'; document.querySelectorAll('#aiRepFilters .segm').forEach((x,i)=>x.classList.toggle('on',i===0)); renderAiReports(); go('s_aireports'); }
+function filterAiReports(f,el){ aiRepFilter=f; if(el){ el.parentNode.querySelectorAll('.segm').forEach(s=>s.classList.remove('on')); el.classList.add('on'); } renderAiReports(); }
+function openAiRepView(i){
+  const r=(MDATA.dailyReports||[])[i]; if(!r) return; aiRepView=i;
+  const dt=document.getElementById('arvDate'); if(dt) dt.textContent=r.date+' · 梶原 健司';
+  const b=document.getElementById('arvStatus'); const s=AI_STATUS[r.status]||AI_STATUS.draft;
+  if(b){ b.className='arp-status '+s.cls; b.textContent=s.lbl; }
+  const body=document.getElementById('arvBody');
+  if(body) body.innerHTML = `
+    <div class="ai-doc">
+      <div class="arp-row"><div class="arp-l">サマリ</div><div class="arp-v locked">${r.summary}</div></div>
+      <div class="arp-row"><div class="arp-l">訪問詳細</div><div class="arp-v locked">${r.detail}</div></div>
+      <div class="arp-row"><div class="arp-l">次回</div><div class="arp-v locked">${r.next}</div></div>
+      <div class="arp-row"><div class="arp-l">所感</div><div class="arp-v locked">${r.impression}</div></div>
+    </div>`
+    + (r.returnNote?`<div class="mnote amber" style="margin-top:12px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg><div><b>上長から差し戻し</b><br>${r.returnNote}</div></div>`:'');
+  const foot=document.getElementById('arvFoot');
+  if(foot) foot.innerHTML = r.status==='returned'
+    ? `<button class="bigbtn tap" onclick="editAiReportFromList(${i})"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>報告を修正して再提出</button>`
+    : `<button class="bigbtn tap" style="background:#fff;color:var(--brand-700);border:1.6px solid var(--brand)" onclick="toast('日報PDFを出力しました')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>PDFを出力</button>`;
+  go('s_airepview');
+}
+function editAiReportFromList(i){
+  const r=(MDATA.dailyReports||[])[i]; if(!r) return;
+  aiReport.status='returned';
+  document.getElementById('aiReportBody').innerHTML = `
+    <div class="ai-doc">
+      <div class="arp-row"><div class="arp-l">サマリ</div><div class="arp-v" onclick="editArp(this)">${r.summary}</div></div>
+      <div class="arp-row"><div class="arp-l">訪問詳細</div><div class="arp-v" onclick="editArp(this)">${r.detail}</div></div>
+      <div class="arp-row"><div class="arp-l">次回</div><div class="arp-v" onclick="editArp(this)">${r.next}</div></div>
+      <div class="arp-row"><div class="arp-l">所感</div><div class="arp-v" onclick="editArp(this)">${r.impression}</div></div>
+    </div>`;
+  renderAiReportStatus();
+  go('s_aireport');
+  toast('差し戻し分を修正できます');
+}
+
 function startRecord(){
   rec.store=''; rec.type='';
   go('s_rec1');

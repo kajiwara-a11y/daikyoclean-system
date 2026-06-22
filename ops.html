@@ -5394,6 +5394,22 @@ body{
 .aps-submitted{background:var(--amber-soft);color:#9a6210}
 .aps-approved{background:var(--eco-soft);color:#15784f}
 .aps-returned{background:var(--red-soft);color:#a8352d}
+.rep-link{display:flex;align-items:center;gap:11px;margin:10px 0 4px;padding:12px 13px;border-radius:13px;cursor:pointer;background:#fff;border:1.4px solid #e6ecee}
+.rep-link:active{transform:scale(.99)}
+.rep-link .ri{width:34px;height:34px;border-radius:10px;background:var(--brand-tint);color:var(--brand-700);display:flex;align-items:center;justify-content:center;flex:none}
+.rep-link .rt{flex:1;line-height:1.3}
+.rep-link .rt b{font-size:13px;font-weight:700}
+.rep-link .rt span{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+.rep-link .chev{color:var(--faint);flex:none}
+.rep-card{background:#fff;border:1.4px solid #e6ecee;border-radius:14px;padding:12px 13px;margin-bottom:10px;cursor:pointer}
+.rep-card:active{transform:scale(.995)}
+.rep-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.rep-date{font-size:12.5px;font-weight:800}
+.rep-sum{font-size:12px;color:var(--muted);line-height:1.5}
+.rep-meta{display:flex;align-items:center;gap:8px;margin-top:9px}
+.rep-rng{font-size:10.5px;font-weight:800;color:var(--brand-700);background:var(--brand-tint);padding:2px 9px;border-radius:20px}
+.rep-flag{font-size:10.5px;font-weight:800;color:#a8352d;background:var(--red-soft);padding:2px 9px;border-radius:20px}
+.rep-meta .chev{margin-left:auto;color:var(--faint)}
 
 /* ---- 上長デモ操作（承認/差し戻し） ---- */
 .sup-row{display:flex;gap:9px;width:100%;margin-top:14px}
@@ -5453,6 +5469,11 @@ body{
             <div class="ai-cta tap" onclick="openAiPrep()">
               <div class="ai-cta-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9z"></path></svg></div>
               <div class="ai-cta-tx"><b>本日の活動からAI日報を作成</b><span>記録した3件を AI が日報に整形 → 上長へ提出</span></div>
+              <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+            <div class="rep-link tap" onclick="openAiReports()">
+              <div class="ri"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6M8 13h8M8 17h5"></path></svg></div>
+              <div class="rt"><b>提出した日報を見る</b><span>承認状況の確認・差し戻しの修正</span></div>
               <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"></path></svg>
             </div>
             <div class="mnote teal"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>店舗をタップ → 訪問前カルテで前年度実績とトラブル履歴を確認できます。</div>
@@ -5798,6 +5819,37 @@ body{
             </div>
           </div>
           <div class="sc-foot" id="aiDoneFoot"><button class="bigbtn tap" onclick="root('s_home')">ホームへ戻る</button></div>
+        </section>
+
+        <!-- ============ 営業：日報一覧（閲覧） ============ -->
+        <section class="screen" id="s_aireports" data-state="hidden">
+          <div class="ah"><div class="ah-row">
+            <div class="back tap" onclick="back()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg></div>
+            <div><div class="ah-t">日報</div><div class="ah-s">提出した日報と承認状況</div></div>
+          </div></div>
+          <div class="sc">
+            <div class="seg-row" id="aiRepFilters">
+              <span class="segm on" onclick="filterAiReports('すべて',this)">すべて</span>
+              <span class="segm" onclick="filterAiReports('提出済',this)">提出済</span>
+              <span class="segm" onclick="filterAiReports('承認済',this)">承認済</span>
+              <span class="segm" onclick="filterAiReports('差し戻し',this)">差し戻し</span>
+            </div>
+            <div id="aiRepList"></div>
+          </div>
+          <div class="sc-foot"><button class="bigbtn tap" onclick="openAiPrep()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9z"></path></svg>新しい日報を作成</button></div>
+        </section>
+
+        <!-- ============ 営業：日報 詳細（閲覧） ============ -->
+        <section class="screen" id="s_airepview" data-state="hidden">
+          <div class="ah"><div class="ah-row">
+            <div class="back tap" onclick="back()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg></div>
+            <div><div class="ah-t">AI日報</div><div class="ah-s" id="arvDate">—</div></div>
+          </div></div>
+          <div class="sc">
+            <div style="display:flex;align-items:center;gap:8px;margin:4px 0 2px"><span style="font-size:11px;font-weight:800;color:var(--muted)">状態</span><span class="arp-status aps-submitted" id="arvStatus">提出済</span></div>
+            <div id="arvBody"></div>
+          </div>
+          <div class="sc-foot" id="arvFoot"></div>
         </section>
 
       </div><!-- /vp -->
