@@ -560,11 +560,15 @@ function permFineRows(mod,key){
     f[i]==='N'?`<span class="subtle">—</span>`:permSelect(f[i])
   ]);
 }
+function scopeSelect(cur){
+  return `<select class="search" onchange="toast('アクセス範囲を変更（未保存）')">${SCOPE_DEFS.map(s=>`<option${s.key===cur?' selected':''}>${s.name}</option>`).join('')}</select>`;
+}
 function scr_auth_roles(){
   const cards = ROLES.map((r,i)=>`
     <div class="role-card" onclick="setRolePanel(${i})">
       <div class="kt"><div class="kic">${ic('shield')}</div><div class="lbl">${r.name}</div><span class="tag ${r.color} nodot" style="margin-left:auto">${r.users}名</span></div>
-      <div class="subtle" style="font-size:12px;margin:8px 0 14px;line-height:1.5;min-height:50px">${r.desc}</div>
+      <div style="margin:7px 0 8px"><span class="subtle" style="font-size:10.5px;margin-right:5px">アクセス範囲</span><span class="tag ${(SCOPE_DEFS.find(s=>s.key===r.scope)||SCOPE_DEFS[0]).cls} nodot">${(SCOPE_DEFS.find(s=>s.key===r.scope)||SCOPE_DEFS[0]).name}</span></div>
+      <div class="subtle" style="font-size:12px;margin:0 0 14px;line-height:1.5;min-height:40px">${r.desc}</div>
       <button class="btn" style="width:100%;justify-content:center" onclick="event.stopPropagation();setRolePanel(${i})">権限を編集</button>
     </div>`).join('');
   const panels = ROLES.map(r=>{
@@ -588,10 +592,25 @@ function scr_auth_roles(){
       </div>
       <div class="form-foot" style="margin-top:4px"><button class="btn primary" onclick="toast('${r.name} の権限を保存しました')">変更を保存</button><button class="btn">既定値に戻す</button></div>`;
   });
-  return note('ロール体系は <b>管理者 / マネージャ / 営業 / 事務</b>（＋現場）。各モジュールの権限レベル（参照／参照・編集／フル）をロールごとに設定します。実際の画面を確認するには、右上のユーザー名メニューから<b>「権限プレビュー」</b>をご利用ください。')+
-    note('<b>営業</b> は<b>自担当顧客のみ</b>閲覧できます（行レベルの絞り込み）。担当外の顧客・請求は一覧にも表示されません。','warn','shield')+
+  const scopeCards = SCOPE_DEFS.map(s=>{
+    const rs=ROLES.filter(r=>r.scope===s.key);
+    return `<div class="panel" style="margin:0"><div class="ph">${ic(s.icon,'pic')}${s.name}<span class="tag ${s.cls} nodot" style="margin-left:auto">${rs.length}ロール</span></div>
+      <div class="pb"><div class="subtle" style="font-size:12px;line-height:1.6;min-height:38px">${s.desc}</div>
+      <div style="margin-top:8px;font-size:12px"><b>見える範囲：</b>${s.see}</div>
+      <div style="margin-top:4px;font-size:12px"><b>対象ロール：</b>${rs.map(r=>r.name).join('・')||'—'}</div></div></div>`;
+  }).join('');
+  const scopeTable = tbl([{t:'ロール'},{t:'アクセス範囲（データ階層）'},{t:'見える範囲'}], ROLES.map(r=>{
+    const s=SCOPE_DEFS.find(d=>d.key===r.scope)||SCOPE_DEFS[0];
+    return [`<b>${r.name}</b>`, scopeSelect(r.scope), s.see];
+  }));
+  return note('権限は <b>①アクセス範囲（総管理／会社／店舗）</b> と <b>②モジュール別の操作権限</b> の2軸で設計します。ロールは 管理者／マネージャ／営業／事務（＋現場）。')+
+    `<div style="font-weight:700;font-size:14px;margin:18px 0 12px">${ic('shield')} ① アクセス範囲（データ階層）<span class="subtle" style="font-weight:500;font-size:11.5px;margin-left:6px">総管理 ⊃ 会社単位 ⊃ 店舗単位</span></div>`+
+    `<div class="grid3">${scopeCards}</div>`+
+    `<div class="panel" style="margin-top:12px"><div class="ph">${ic('shield','pic')}ロール別 アクセス範囲</div><div class="pb flush">${scopeTable}</div></div>`+
+    note('<b>営業</b>は自担当顧客の店舗のみ、<b>現場</b>は担当店舗のみ表示（行レベルの絞り込み）。担当外のデータは一覧にも出ません。','warn','shield')+
+    `<div style="font-weight:700;font-size:14px;margin:24px 0 12px">${ic('shield')} ② ロール × モジュール権限</div>`+
     `<div class="role-cards">${cards}</div>`+
-    `<div style="font-weight:700;font-size:14px;margin:24px 0 12px">権限レベルの編集</div>`+
+    `<div style="font-weight:700;font-size:14px;margin:20px 0 12px">権限レベルの編集</div>`+
     segmented(ROLES.map(r=>r.name), panels)+
     note('※画面表示の制御に加え、<b>API側でも認可チェックを実施</b>します（本実装）。本画面は権限設計のプレビューです。');
 }
