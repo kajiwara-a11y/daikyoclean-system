@@ -5001,7 +5001,7 @@
    商談用：スマホ実機モック + 差別化ポイント注釈
    ============================================================ */
 :root{
-  --ink:#15282f; --ink-2:#3a525b; --muted:#6a818a; --faint:#9bafb6;
+  --ink:#15282f; --ink-2:#31474f; --muted:#4f656d; --faint:#6f8b94;
   --line:#e3eaec; --line-2:#eef3f4;
   --brand:#0b7c8c; --brand-600:#0a6c7a; --brand-700:#085763;
   --brand-soft:#e3f1f3; --brand-tint:#f0f7f8;
@@ -5240,7 +5240,7 @@ body{
 
 /* viewport that holds sliding screens */
 .vp{flex:1;position:relative;overflow:hidden}
-.screen{position:absolute;inset:0;display:flex;flex-direction:column;background:#f4f7f8;
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;background:#f4f7f8;color:var(--ink);
   transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .32s;will-change:transform}
 .screen[data-state="hidden"]{transform:translateX(100%);opacity:0;pointer-events:none;z-index:1}
 .screen[data-state="behind"]{transform:translateX(-26%);opacity:.4;pointer-events:none;z-index:2}

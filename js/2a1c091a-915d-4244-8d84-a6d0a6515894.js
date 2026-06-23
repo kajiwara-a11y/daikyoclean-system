@@ -167,7 +167,7 @@ function scopeNote(label,total,shown){
   return note(`<b>営業ロール</b>：${label}は<b>自担当（${me}）</b>のレコードのみ表示しています（全${total}件中 <b>${shown}件</b>）。担当外のデータは一覧・検索に出ません（行レベル権限）。`,'warn','shield');
 }
 function scr_cust(t){
-  if(t!==5){ custStoreMgmt=''; storeStatus='すべて'; storeArea='すべて'; } // 店舗一覧以外へ移ったら絞り込みを解除
+  if(t!==5){ custStoreMgmt=''; storeStatus='すべて'; storeArea='すべて'; storeQuery=''; } // 店舗一覧以外へ移ったら絞り込みを解除
   if(t===1) return scr_cust_new();
   if(t===2) return `<div class="grid2">
     ${panel(`${ic('customer','pic')}顧客分類`, tbl([{t:'分類コード'},{t:'分類名'},{t:'顧客数',num:true},''],[
@@ -297,7 +297,7 @@ function scr_cust_mgmt(){
   ])+note('管理会社の行の「詳細」で所属店舗を確認できます。切替（店舗移管）は履歴として追跡し、有効期間で世代管理します。');
 }
 /* 店舗一覧の絞り込み（管理会社／状態／エリア）。選択で即フィルタ。custStoreMgmtは管理会社詳細からも設定される */
-var storeStatus='すべて', storeArea='すべて';
+var storeStatus='すべて', storeArea='すべて', storeQuery='';
 function storeAreaMatch(area,region){
   if(region==='関西') return /大阪|神戸|京都|兵庫|奈良|滋賀|和歌山/.test(area);
   if(region==='関東') return /東京|さいたま|埼玉|千葉|横浜|川崎|神奈川/.test(area);
@@ -316,14 +316,75 @@ function setStoreFilter(kind,val){
 function storeSel(kind,opts,cur){
   return `<select class="search" onchange="setStoreFilter('${kind}',this.value)">${opts.map(o=>`<option${o===cur?' selected':''}>${o}</option>`).join('')}</select>`;
 }
-function scr_cust_store(){
-  const mc=custStoreMgmt, meta=MGMT_DETAIL[mc]||{};
-  const rows=STORE_ROWS.filter(s=>{
+/* 店舗一覧のキーワード検索（店舗コード・名称・顧客・エリア・管理会社・頻度・状態を横断） */
+function storeMatchQuery(s){
+  const q=(storeQuery||'').trim().toLowerCase();
+  if(!q) return true;
+  const mgmtName=(MGMT_DETAIL[s.mgmt]||{}).name||'直接管理';
+  return (s.code+' '+s.name+' '+s.cust+' '+s.area+' '+mgmtName+' '+s.freq+' '+s.status).toLowerCase().indexOf(q)>=0;
+}
+function storeFiltered(){
+  const mc=custStoreMgmt;
+  return STORE_ROWS.filter(s=>{
     const mgmtOk = !mc ? true : (mc==='__none__' ? s.mgmt==='' : s.mgmt===mc);
     const statusOk = storeStatus==='すべて' || s.status===storeStatus;
     const areaOk = storeArea==='すべて' || storeAreaMatch(s.area, storeArea);
-    return mgmtOk && statusOk && areaOk;
+    return mgmtOk && statusOk && areaOk && storeMatchQuery(s);
   });
+}
+// 表本体のみ（検索時は #storeWrap だけ差し替え、入力フォーカスを維持）
+function storeTableHtml(){
+  const rows=storeFiltered();
+  return tbl([{t:'店舗コード'},{t:'店舗名'},{t:'顧客'},{t:'管理会社'},{t:'エリア'},{t:'作業頻度'},{t:'状態'}],
+    rows.map(s=>['<span class="code">'+s.code+'</span>','<b>'+s.name+'</b>',s.cust,(MGMT_DETAIL[s.mgmt]||{}).name||'—（直接管理）',s.area,tag(s.fc,s.freq),tag(s.sc,s.status)]),
+  {click:true})+
+  (rows.length===0
+    ? note('該当する店舗がありません。キーワードや絞り込み条件を見直してください。','','info')
+    : `<div class="subtle" style="font-size:12px;margin-top:8px">${rows.length}件を表示${storeQuery?`（「${esc(storeQuery)}」で検索）`:''}</div>`);
+}
+function onStoreSearch(v){ storeQuery=v; const w=document.getElementById('storeWrap'); if(w) w.innerHTML=storeTableHtml(); }
+function applyStoreSearch(){ const el=document.getElementById('storeQ'); if(el) onStoreSearch(el.value); }
+function clearStoreSearch(){ storeQuery=''; const el=document.getElementById('storeQ'); if(el) el.value=''; const w=document.getElementById('storeWrap'); if(w) w.innerHTML=storeTableHtml(); }
+function storeSearchBox(){
+  return `<div style="display:flex;gap:7px;flex:1;max-width:380px">
+    <div style="position:relative;flex:1"><input id="storeQ" class="search grow" style="width:100%;padding-left:34px" placeholder="店舗名・コード・顧客で検索…" value="${esc(storeQuery||'')}" oninput="onStoreSearch(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();applyStoreSearch();}"><span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--faint)">${ic('search')}</span></div>
+    <button class="btn primary" onclick="applyStoreSearch()">${ic('search')}検索</button>${storeQuery?`<button class="btn" onclick="clearStoreSearch()">クリア</button>`:''}
+  </div>`;
+}
+
+/* 店舗の一括登録ドロワー（複数店舗をまとめて追加。大量データはCSVへ誘導） */
+function bulkStoreRow(){
+  return `<div class="store-row">
+    <span class="sr-ic">${ic('store')}</span>
+    <input placeholder="店舗名">
+    <input placeholder="エリア・住所（郵便番号で自動補完）" style="flex:1.2">
+    <select>${['月次','月2回','季次','半年','年次'].map(f=>`<option>${f}</option>`).join('')}</select>
+    <span class="sr-x" title="この行を削除" onclick="this.closest('.store-row').remove();recountBulkStores()">${ic('plus')}</span>
+  </div>`;
+}
+function recountBulkStores(){ const el=document.getElementById('bulkCnt'); if(el) el.textContent=document.querySelectorAll('#bulkStores .store-row').length; }
+function addBulkStoreRow(){ const w=document.getElementById('bulkStores'); if(w){ w.insertAdjacentHTML('beforeend', bulkStoreRow()); recountBulkStores(); } }
+function submitBulkStores(){ const n=document.querySelectorAll('#bulkStores .store-row').length; closeDrawer(); toast(n+'店舗をまとめて登録しました（住所はGoogle Mapsで補完／店舗コードは自動採番）'); }
+function openStoreBulkAdd(){
+  document.getElementById('drawerTitle').textContent='店舗を一括登録';
+  document.getElementById('drawerSub').textContent='複数店舗をまとめて追加（大量データはCSV取込）';
+  const body=document.getElementById('drawerBody'), foot=document.getElementById('drawerFoot');
+  body.innerHTML =
+    note('複数店舗を<b>まとめて登録</b>できます。行を追加して入力、または<b>CSVで一括取込</b>（大量データ向け）。住所は郵便番号から Google Maps で自動補完します。','eco','store')+
+    `<div class="mfld-row" style="margin-bottom:10px"><label style="font-size:12px;font-weight:700;display:block;margin-bottom:5px">紐づく顧客（親）</label>${sel2(['みなとフードHD','関西モール管理','グルメテーブル中部FC','中央総合病院グループ'])}</div>`+
+    `<div style="font-size:12px;font-weight:700;margin:4px 0 6px">登録する店舗（<span id="bulkCnt">3</span>件）</div>`+
+    `<div id="bulkStores">${bulkStoreRow()}${bulkStoreRow()}${bulkStoreRow()}</div>`+
+    `<div style="display:flex;gap:9px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn" onclick="addBulkStoreRow()">${ic('plus')}行を追加</button>
+      <button class="btn" onclick="closeDrawer();openCsvImport()">${ic('upload')}CSVで一括取込</button>
+    </div>`;
+  foot.innerHTML = `<button class="btn primary" onclick="submitBulkStores()">${ic('check')}まとめて登録</button><button class="btn ghost" onclick="closeDrawer()">キャンセル</button>`;
+  showDrawer();
+}
+
+function scr_cust_store(){
+  const mc=custStoreMgmt, meta=MGMT_DETAIL[mc]||{};
+  const rows=storeFiltered();
   const mgmtCur = !mc ? '管理会社：すべて' : (mc==='__none__' ? '—（直接管理）' : (meta.name||'管理会社：すべて'));
   const statusCur = storeStatus==='すべて' ? '状態：すべて' : storeStatus;
   const areaCur = storeArea==='すべて' ? 'エリア：すべて' : storeArea;
@@ -334,11 +395,8 @@ function scr_cust_store(){
     {l:'今月 閉店',v:'6',dir:'down',icon:'store',accent:'amber'},{l:'移管手続中',v:'21',icon:'refresh'},
   ])+
   (mc?note(`管理会社「<b>${bName}</b>」の店舗で絞り込み中（${bCount}を表示）　<span class="lnk" onclick="custStoreMgmt='';route('cust',5)">絞り込み解除</span>`,'amber','filter'):'')+
-  toolbar(searchBox('店舗名・コードで検索…')+storeSel('status',['状態：すべて','営業中','閉店','開店準備中','移管手続中'],statusCur)+storeSel('area',['エリア：すべて','関西','関東','中部'],areaCur)+storeSel('mgmt',['管理会社：すべて','関西施設サービス','東日本ビル管理','京浜メンテナンス','—（直接管理）'],mgmtCur)+`<span class="spacer"></span><button class="btn" onclick="openCsvImport()">${ic('upload')}CSVインポート</button>`+btnCsv+btnNew('店舗登録'))+
-  tbl([{t:'店舗コード'},{t:'店舗名'},{t:'顧客'},{t:'管理会社'},{t:'エリア'},{t:'作業頻度'},{t:'状態'}],
-    rows.map(s=>['<span class="code">'+s.code+'</span>','<b>'+s.name+'</b>',s.cust,(MGMT_DETAIL[s.mgmt]||{}).name||'—（直接管理）',s.area,tag(s.fc,s.freq),tag(s.sc,s.status)]),
-  {click:true})+
-  (rows.length===0?note('該当する店舗がありません。絞り込み条件を見直してください。','','info'):'');
+  toolbar(storeSearchBox()+storeSel('status',['状態：すべて','営業中','閉店','開店準備中','移管手続中'],statusCur)+storeSel('area',['エリア：すべて','関西','関東','中部'],areaCur)+storeSel('mgmt',['管理会社：すべて','関西施設サービス','東日本ビル管理','京浜メンテナンス','—（直接管理）'],mgmtCur)+`<span class="spacer"></span><button class="btn" onclick="openCsvImport()">${ic('upload')}CSVインポート</button>`+btnCsv+`<button class="btn primary" onclick="openStoreBulkAdd()">${ic('plus')}店舗登録</button>`)+
+  `<div id="storeWrap">`+storeTableHtml()+`</div>`;
 }
 
 /* ---- 取引履歴（顧客ごと・全種別 + 検索） ---- */
